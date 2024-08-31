@@ -3,6 +3,7 @@ package rtmpserver
 import (
 	"github.com/yapingcat/gomedia/go-codec"
 	"log"
+	"net/url"
 	"slices"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ type MediaProducer struct {
 	name               string
 	session            *MediaSession
 	mtx                sync.Mutex
+	targetConsumers    []*PushConsumer
 	consumers          []MediaConsumer
 	frames             chan *MediaFrame
 	framesBatches      chan *MediaFrameBatch
@@ -49,6 +51,25 @@ func (prod *MediaProducer) start() {
 
 		since := time.Since(prod.currentFramesBatch.startTime)
 		if since >= time.Second {
+			if stream, err := sess.registry.GetStream(prod.name); err == nil {
+				actualTargets := make(map[url.URL]struct{})
+				for _, consumer := range prod.targetConsumers {
+					actualTargets[*consumer.url] = struct{}{}
+				}
+				for _, target := range stream.Targets {
+					targetUrl := *(*url.URL)(target)
+					if _, ok := actualTargets[targetUrl]; !ok {
+						log.Printf("Creating PushConsumer for %s with target %s", prod.name, targetUrl.String())
+						c, err := NewPushConsumer(target)
+						if err != nil {
+							log.Printf("Failed to create push consumer for stream %s: %v", prod.name, err)
+							continue
+						}
+						prod.addTargetConsumer(c)
+					}
+				}
+			}
+
 			var bytes int
 			for _, mediaFrame := range prod.currentFramesBatch.frames {
 				bytes += len(mediaFrame.frame)
@@ -91,6 +112,9 @@ func (prod *MediaProducer) dispatch() {
 			consumers := slices.Clone(prod.consumers)
 			prod.mtx.Unlock()
 
+			for _, c := range prod.targetConsumers {
+				c.Play(batch.clone())
+			}
 			for _, c := range consumers {
 				c.Play(batch.clone())
 			}
@@ -105,6 +129,12 @@ func (prod *MediaProducer) dispatch() {
 func (prod *MediaProducer) addConsumer(consumer MediaConsumer) {
 	prod.mtx.Lock()
 	prod.consumers = append(prod.consumers, consumer)
+	prod.mtx.Unlock()
+}
+
+func (prod *MediaProducer) addTargetConsumer(consumer *PushConsumer) {
+	prod.mtx.Lock()
+	prod.targetConsumers = append(prod.targetConsumers, consumer)
 	prod.mtx.Unlock()
 }
 

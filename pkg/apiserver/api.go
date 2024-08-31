@@ -11,6 +11,10 @@ type Stream struct {
 	Targets []string `json:"targets"`
 }
 
+type AddTargetInfo struct {
+	Target string `json:"target"`
+}
+
 func (stream *Stream) toRegistryObject() (*registry.Stream, error) {
 	targets := make([]*registry.PushTargetUrl, len(stream.Targets))
 	for i, target := range stream.Targets {

@@ -1,7 +1,6 @@
 package registry
 
 import (
-	"errors"
 	"sync"
 	"time"
 )
@@ -62,7 +61,26 @@ func (r *registryImpl) GetStatus(keyName string) (*StreamStatus, error) {
 			Bitrate:       key.status.bitrate,
 		}, nil
 	}
-	return nil, errors.New("stream not found")
+	return nil, StreamNotFound{}
+}
+
+func (r *registryImpl) AddStreamTarget(keyName string, target *PushTargetUrl) error {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+
+	if key, ok := r.keys[keyName]; ok {
+		targets := make([]*PushTargetUrl, len(key.Targets))
+		copy(targets, key.Targets)
+		for _, t := range targets {
+			if t == target {
+				return nil
+			}
+		}
+		targets = append(targets, target)
+		key.Targets = targets
+		return nil
+	}
+	return StreamNotFound{}
 }
 
 func (r *registryImpl) UpdateStatus(keyName string, lastFrameTime time.Time, bitrate uint) error {
@@ -76,7 +94,7 @@ func (r *registryImpl) UpdateStatus(keyName string, lastFrameTime time.Time, bit
 		}
 		return nil
 	}
-	return errors.New("stream not found")
+	return StreamNotFound{}
 }
 
 func NewRegistry() Registry {

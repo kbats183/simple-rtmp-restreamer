@@ -44,6 +44,11 @@ func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
 
 	go func() {
 		for {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("RTMPPushClient (%s) connection panic: %v", consumer.url, r)
+				}
+			}()
 			err := consumer.connection()
 			if consumer.quited.Load() {
 				break

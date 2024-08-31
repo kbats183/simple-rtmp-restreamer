@@ -6,6 +6,7 @@ import (
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -29,6 +30,7 @@ func (router *streamRouter) Routes() {
 		r.Post("/", router.createStream())
 		r.Delete("/{id}", router.deleteBankByID())
 		r.Get("/{id}/status", router.getStreamStatusById())
+		r.Post("/{id}/targets", router.addStreamTargetByStreamId())
 	})
 }
 
@@ -114,6 +116,27 @@ func (router *streamRouter) getStreamStatusById() http.HandlerFunc {
 	}
 }
 
+func (router *streamRouter) addStreamTargetByStreamId() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var targetInfo AddTargetInfo
+		if err := json.NewDecoder(r.Body).Decode(&targetInfo); err != nil {
+			handleErrors(w, err)
+			return
+		}
+		target, err := url.Parse(targetInfo.Target)
+		if err != nil {
+			handleErrors(w, err)
+			return
+		}
+
+		err = router.registry.AddStreamTarget(chi.URLParam(r, "id"), (*registry.PushTargetUrl)(target))
+		if err != nil {
+			handleErrors(w, err)
+			return
+		}
+	}
+}
+
 // ErrorResponse represents json error structure
 type ErrorResponse struct {
 	Error string `json:"error"`
@@ -140,6 +163,8 @@ func handleErrors(w http.ResponseWriter, err error) {
 		return
 	}
 	switch err.(type) {
+	case registry.StreamNotFound:
+		JSONError(w, err.Error(), http.StatusNotFound)
 	default:
 		log.Printf(logFormat, err)
 		JSONError(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

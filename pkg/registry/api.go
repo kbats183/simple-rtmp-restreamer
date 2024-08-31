@@ -29,6 +29,7 @@ type Registry interface {
 	GetStream(keyName string) (*Stream, error)
 	Update(key *Stream) error
 	DeleteStream(keyName string) error
+	AddStreamTarget(keyName string, target *PushTargetUrl) error
 	GetStatus(keyName string) (*StreamStatus, error)
 	UpdateStatus(keyName string, lastFrameTime time.Time, bitrate uint) error
 }

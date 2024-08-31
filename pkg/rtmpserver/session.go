@@ -50,14 +50,6 @@ func (sess *MediaSession) init() {
 		}
 
 		p := newMediaProducer(streamName, sess)
-		for _, target := range stream.Targets {
-			c, err := NewPushConsumer(target)
-			if err != nil {
-				log.Printf("Failed to create push consumer for stream %s: %v", streamName, err)
-				continue
-			}
-			p.addConsumer(c)
-		}
 		sess.producer = p
 
 		return rtmp.NETSTREAM_PUBLISH_START
