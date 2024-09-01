@@ -53,9 +53,10 @@ func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
 			if consumer.quited.Load() {
 				break
 			}
-			log.Printf("RTMPPushClient (%s) connection failed: %v", consumer.url, err)
+			log.Printf("RTMPPushClient (%s) failed: %v", consumer.url, err)
 			time.Sleep(2 * time.Second)
 		}
+		log.Printf("RTMPPushClient (%s) exited", consumer.url)
 	}()
 
 	return &consumer, nil
@@ -96,6 +97,7 @@ func (cn *PushConsumer) connection() error {
 	go func() {
 		<-cn.onReady
 		cn.sendToServer()
+		log.Printf("Stopped (%s) ...", cn.url)
 	}()
 
 	return cn.socketRead()
@@ -125,6 +127,7 @@ func (cn *PushConsumer) Close() error {
 		close(cn.quit)
 		err = cn.conn.Close()
 	})
+	log.Printf("Closed RTMPPushConsumer %s", cn.url.String())
 	return err
 }
 

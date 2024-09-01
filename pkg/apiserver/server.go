@@ -16,7 +16,7 @@ type webServer struct {
 func NewWebServer(registry registry.Registry) *webServer {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
-	router.Use(middleware.Logger)
+	router.Use(loggerMiddleware())
 	router.Use(middleware.Recoverer)
 
 	streamRouter := newStreamsRouter(router, registry)

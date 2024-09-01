@@ -29,6 +29,7 @@ func newMediaProducer(name string, sess *MediaSession) *MediaProducer {
 		name:               name,
 		session:            sess,
 		consumers:          make([]MediaConsumer, 0, 10),
+		targetConsumers:    make([]*PushConsumer, 0, 10),
 		framesBatches:      make(chan *MediaFrameBatch, 3000),
 		currentFramesBatch: nil,
 		quit:               make(chan struct{}),
@@ -93,10 +94,14 @@ func (prod *MediaProducer) stop() {
 func (prod *MediaProducer) Close() error {
 	prod.mtx.Lock()
 	consumers := slices.Clone(prod.consumers)
+	targetConsumers := slices.Clone(prod.targetConsumers)
 	prod.mtx.Unlock()
 
 	for _, c := range consumers {
-		c.Close()
+		_ = c.Close()
+	}
+	for _, c := range targetConsumers {
+		_ = c.Close()
 	}
 	prod.stop()
 	return nil
@@ -109,10 +114,11 @@ func (prod *MediaProducer) dispatch() {
 			log.Printf("Prudecer dispatch %d frames batch %d", len(batch.frames), batch.frames[0].dts)
 
 			prod.mtx.Lock()
+			targetConsumers := slices.Clone(prod.targetConsumers)
 			consumers := slices.Clone(prod.consumers)
 			prod.mtx.Unlock()
 
-			for _, c := range prod.targetConsumers {
+			for _, c := range targetConsumers {
 				c.Play(batch.clone())
 			}
 			for _, c := range consumers {

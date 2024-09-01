@@ -7,6 +7,8 @@ import (
 )
 
 func main() {
+	setupLogger()
+
 	streamRegistry := registry.NewRegistry()
 
 	rtmp := rtmpserver.NewMediaServer(rtmpserver.MediaServerConfig{}, streamRegistry)

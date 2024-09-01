@@ -1,8 +1,15 @@
 package registry
 
 import (
+	"encoding/json"
+	"log"
+	"os"
 	"sync"
 	"time"
+)
+
+const (
+	REGESTRY_STORAGE_FILE = "simple-rtmp-restreamer.data.json"
 )
 
 type registryImpl struct {
@@ -31,15 +38,17 @@ func (r *registryImpl) GetStream(keyName string) (*Stream, error) {
 
 func (r *registryImpl) Update(key *Stream) error {
 	r.mux.Lock()
-	defer r.mux.Unlock()
 	r.keys[key.Name] = key
+	r.mux.Unlock()
+	r.savePersistent()
 	return nil
 }
 
 func (r *registryImpl) DeleteStream(keyName string) error {
 	r.mux.Lock()
-	defer r.mux.Unlock()
 	delete(r.keys, keyName)
+	r.mux.Unlock()
+	r.savePersistent()
 	return nil
 }
 
@@ -78,6 +87,7 @@ func (r *registryImpl) AddStreamTarget(keyName string, target *PushTargetUrl) er
 		}
 		targets = append(targets, target)
 		key.Targets = targets
+		r.savePersistent()
 		return nil
 	}
 	return StreamNotFound{}
@@ -97,8 +107,49 @@ func (r *registryImpl) UpdateStatus(keyName string, lastFrameTime time.Time, bit
 	return StreamNotFound{}
 }
 
+func (r *registryImpl) loadPersistent() {
+	file, err := os.Open(REGESTRY_STORAGE_FILE)
+	if err != nil {
+		log.Printf("Failed to load restreamser registry from file: %v", err)
+		return
+	}
+	defer file.Close()
+
+	var streams []Stream
+	err = json.NewDecoder(file).Decode(&streams)
+	if err != nil {
+		log.Printf("Failed to load restreamser registry from file: %v", err)
+		return
+	}
+	for _, stream := range streams {
+		r.keys[stream.Name] = &stream
+	}
+}
+
+func (r *registryImpl) savePersistent() {
+	file, err := os.Create(REGESTRY_STORAGE_FILE)
+	if err != nil {
+		log.Printf("Failed to save restreamser registry file: %v", err)
+		return
+	}
+	defer file.Close()
+
+	streams, err := r.GetStreams()
+	if err != nil {
+		log.Printf("Failed to save restreamser registry file: %v", err)
+		return
+	}
+	err = json.NewEncoder(file).Encode(streams)
+	if err != nil {
+		log.Printf("Failed to save restreamser registry file: %v", err)
+		return
+	}
+}
+
 func NewRegistry() Registry {
-	return &registryImpl{
+	r := registryImpl{
 		keys: make(map[string]*Stream),
 	}
+	r.loadPersistent()
+	return &r
 }
