@@ -18,13 +18,7 @@ type registryImpl struct {
 }
 
 func (r *registryImpl) GetStreams() ([]*Stream, error) {
-	r.mux.Lock()
-	defer r.mux.Unlock()
-	streams := make([]*Stream, 0, len(r.keys))
-	for _, stream := range r.keys {
-		streams = append(streams, stream)
-	}
-	return streams, nil
+	return r.getStreamsList(), nil
 }
 
 func (r *registryImpl) GetStream(keyName string) (*Stream, error) {
@@ -37,17 +31,13 @@ func (r *registryImpl) GetStream(keyName string) (*Stream, error) {
 }
 
 func (r *registryImpl) Update(key *Stream) error {
-	r.mux.Lock()
-	r.keys[key.Name] = key
-	r.mux.Unlock()
+	r.update(key)
 	r.savePersistent()
 	return nil
 }
 
 func (r *registryImpl) DeleteStream(keyName string) error {
-	r.mux.Lock()
-	delete(r.keys, keyName)
-	r.mux.Unlock()
+	r.deleteStream(keyName)
 	r.savePersistent()
 	return nil
 }
@@ -74,23 +64,9 @@ func (r *registryImpl) GetStatus(keyName string) (*StreamStatus, error) {
 }
 
 func (r *registryImpl) AddStreamTarget(keyName string, target *PushTargetUrl) error {
-	r.mux.Lock()
-	defer r.mux.Unlock()
-
-	if key, ok := r.keys[keyName]; ok {
-		targets := make([]*PushTargetUrl, len(key.Targets))
-		copy(targets, key.Targets)
-		for _, t := range targets {
-			if t == target {
-				return nil
-			}
-		}
-		targets = append(targets, target)
-		key.Targets = targets
-		r.savePersistent()
-		return nil
-	}
-	return StreamNotFound{}
+	err := r.addStreamTarget(keyName, target)
+	r.savePersistent()
+	return err
 }
 
 func (r *registryImpl) UpdateStatus(keyName string, lastFrameTime time.Time, bitrate uint) error {
@@ -105,6 +81,16 @@ func (r *registryImpl) UpdateStatus(keyName string, lastFrameTime time.Time, bit
 		return nil
 	}
 	return StreamNotFound{}
+}
+
+func (r *registryImpl) getStreamsList() []*Stream {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	streams := make([]*Stream, 0, len(r.keys))
+	for _, stream := range r.keys {
+		streams = append(streams, stream)
+	}
+	return streams
 }
 
 func (r *registryImpl) loadPersistent() {
@@ -122,7 +108,8 @@ func (r *registryImpl) loadPersistent() {
 		return
 	}
 	for _, stream := range streams {
-		r.keys[stream.Name] = &stream
+		s := stream
+		r.keys[stream.Name] = &s
 	}
 }
 
@@ -134,16 +121,42 @@ func (r *registryImpl) savePersistent() {
 	}
 	defer file.Close()
 
-	streams, err := r.GetStreams()
+	err = json.NewEncoder(file).Encode(r.getStreamsList())
 	if err != nil {
 		log.Printf("Failed to save restreamser registry file: %v", err)
 		return
 	}
-	err = json.NewEncoder(file).Encode(streams)
-	if err != nil {
-		log.Printf("Failed to save restreamser registry file: %v", err)
-		return
+}
+
+func (r *registryImpl) update(key *Stream) {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	r.keys[key.Name] = key
+}
+
+func (r *registryImpl) deleteStream(keyName string) {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	delete(r.keys, keyName)
+}
+
+func (r *registryImpl) addStreamTarget(keyName string, target *PushTargetUrl) error {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+
+	if key, ok := r.keys[keyName]; ok {
+		targets := make([]*PushTargetUrl, len(key.Targets))
+		copy(targets, key.Targets)
+		for _, t := range targets {
+			if t.String() == target.String() {
+				return nil
+			}
+		}
+		targets = append(targets, target)
+		key.Targets = targets
+		return nil
 	}
+	return StreamNotFound{}
 }
 
 func NewRegistry() Registry {

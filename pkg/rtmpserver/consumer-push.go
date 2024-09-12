@@ -53,10 +53,10 @@ func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
 			if consumer.quited.Load() {
 				break
 			}
-			log.Printf("RTMPPushClient (%s) failed: %v", consumer.url, err)
+			log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.source.debugName(), err)
 			time.Sleep(2 * time.Second)
 		}
-		log.Printf("RTMPPushClient (%s) exited", consumer.url)
+		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.source.debugName())
 	}()
 
 	return &consumer, nil
@@ -140,7 +140,7 @@ func (cn *PushConsumer) socketRead() (err error) {
 		if err != nil && errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
-			log.Printf("RTMPPushClient (%s) read error: %v", cn.url, err)
+			log.Printf("RTMPPushClient (%s) from %s read error: %v", cn.url, cn.source.debugName(), err)
 			break
 		}
 		err = cn.client.Input(buf[:n])
@@ -176,6 +176,12 @@ func (cn *PushConsumer) sendToServer() {
 							continue
 						}
 					}
+
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.source.debugName(), r)
+						}
+					}()
 
 					err := cn.client.WriteFrame(frame.cid, frame.frame, frame.pts, frame.dts)
 					if err != nil {

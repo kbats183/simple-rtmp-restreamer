@@ -43,10 +43,10 @@ func (sess *MediaSession) init() {
 		stream, err := sess.registry.GetStream(streamName)
 		if err != nil {
 			log.Printf("Failed to get %s stream info: %v", streamName, err)
-			return rtmp.NETSTREAM_CONNECT_FAILED
+			return rtmp.NETCONNECT_CONNECT_REJECTED
 		} else if stream == nil {
 			log.Printf("No such %s stream info", streamName)
-			return rtmp.NETSTREAM_CONNECT_FAILED
+			return rtmp.NETCONNECT_CONNECT_REJECTED
 		}
 
 		p := newMediaProducer(streamName, sess)
@@ -74,8 +74,12 @@ func (sess *MediaSession) init() {
 
 			sess.resource = sess.producer
 			sess.producer.start()
+		} else if newState == rtmp.STATE_RTMP_PUBLISH_FAILED {
+			name := sess.handle.GetStreamName()
+			log.Printf("Failed rtmp stream %s", name)
+			sess.stop()
 		} else {
-			log.Printf("New state of %s: %d", sess.handle.GetStreamName(), newState)
+			//log.Printf("New state of %s: %d", sess.handle.GetStreamName(), newState)
 		}
 	})
 }

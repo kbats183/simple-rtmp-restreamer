@@ -104,6 +104,7 @@ func (prod *MediaProducer) Close() error {
 		_ = c.Close()
 	}
 	prod.stop()
+	_ = prod.session.registry.UpdateStatus(prod.name, time.Unix(0, 0), 0)
 	return nil
 }
 
@@ -111,7 +112,7 @@ func (prod *MediaProducer) dispatch() {
 	for {
 		select {
 		case batch := <-prod.framesBatches:
-			log.Printf("Prudecer dispatch %d frames batch %d", len(batch.frames), batch.frames[0].dts)
+			log.Printf("RTMPPrudecer %s dispatch %d frames batch %d", prod.debugName(), len(batch.frames), batch.frames[0].dts)
 
 			prod.mtx.Lock()
 			targetConsumers := slices.Clone(prod.targetConsumers)
@@ -152,4 +153,11 @@ func (prod *MediaProducer) removeConsumer(id interface{}) {
 			prod.consumers = append(prod.consumers[i:], prod.consumers[i+1:]...)
 		}
 	}
+}
+
+func (prod *MediaProducer) debugName() string {
+	if prod.session == nil {
+		return prod.name
+	}
+	return prod.name + "-" + prod.session.id
 }

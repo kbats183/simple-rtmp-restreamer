@@ -33,3 +33,7 @@ type Registry interface {
 	GetStatus(keyName string) (*StreamStatus, error)
 	UpdateStatus(keyName string, lastFrameTime time.Time, bitrate uint) error
 }
+
+func (p *PushTargetUrl) String() string {
+	return (*url.URL)(p).String()
+}
