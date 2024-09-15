@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,9 +21,10 @@ type Stream struct {
 
 	framesBatches chan *medias.MediaFrameBatch
 
-	mu   sync.Mutex
-	quit chan struct{}
-	die  sync.Once
+	mu     sync.Mutex
+	quit   chan struct{}
+	quited atomic.Bool
+	die    sync.Once
 }
 
 func newStream(key *ExternalStream) (*Stream, error) {
@@ -54,6 +56,8 @@ func (s *Stream) OnProducerClose() {
 	s.mu.Lock()
 	consumers := slices.Clone(s.consumers)
 	targetConsumers := slices.Clone(s.targetConsumers)
+	s.consumers = nil
+	s.targetConsumers = nil
 	s.mu.Unlock()
 	for _, c := range consumers {
 		_ = c.Close()
@@ -65,6 +69,7 @@ func (s *Stream) OnProducerClose() {
 
 func (s *Stream) dispatch() {
 	for {
+		timer := time.After(time.Second * 30)
 		select {
 		case batch := <-s.framesBatches:
 			log.Printf("RTMPPrudecer %s dispatch %d frames batch %d", s.Name, len(batch.Frames), batch.Frames[0].Dts)
@@ -82,6 +87,9 @@ func (s *Stream) dispatch() {
 			for _, c := range consumers {
 				c.Play(batch.Clone())
 			}
+		case <-timer:
+			log.Printf("Kill stream %s after timeout", s.Name)
+			s.OnProducerClose()
 		case <-s.quit:
 			return
 		}
