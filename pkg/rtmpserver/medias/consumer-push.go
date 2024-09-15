@@ -32,51 +32,7 @@ type PushConsumer struct {
 	framesMtx     sync.Mutex
 	frameCome     chan struct{}
 
-	// TODO: this field used only for logging
-	source *MediaProducer
-}
-
-func (consumer *PushConsumer) reconnection() bool {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("RTMPPushClient (%s) connection panic: %v", consumer.url, r)
-		}
-	}()
-	err := consumer.connection()
-	if consumer.quited.Load() {
-		return false
-	}
-	log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.sourceDebugName(), err)
-	time.Sleep(2 * time.Second)
-	return true
-}
-
-func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
-	consumer := PushConsumer{
-		id:        genId(),
-		url:       (*url.URL)(rtmpUrl),
-		frameCome: make(chan struct{}, 1),
-		onReady:   make(chan struct{}),
-		quit:      make(chan struct{}),
-	}
-
-	go func() {
-		for {
-			if !consumer.reconnection() {
-				break
-			}
-		}
-		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.sourceDebugName())
-	}()
-
-	return &consumer, nil
-}
-
-func (cn *PushConsumer) sourceDebugName() string {
-	if cn.source != nil {
-		return cn.source.debugName()
-	}
-	return "source is nil!!!"
+	sourceName string
 }
 
 func (cn *PushConsumer) connection() error {
@@ -146,6 +102,10 @@ func (cn *PushConsumer) Id() string {
 	return cn.id
 }
 
+func (cn *PushConsumer) Target() string {
+	return cn.url.String()
+}
+
 func (cn *PushConsumer) Close() error {
 	cn.quited.Store(true)
 	var err error
@@ -157,6 +117,10 @@ func (cn *PushConsumer) Close() error {
 	return err
 }
 
+func (cn *PushConsumer) IsClosed() bool {
+	return cn.quited.Load()
+}
+
 func (cn *PushConsumer) socketRead() (err error) {
 	cn.client.Start(cn.url.String())
 	buf := make([]byte, 65536)
@@ -166,7 +130,7 @@ func (cn *PushConsumer) socketRead() (err error) {
 		if err != nil && errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
-			log.Printf("RTMPPushClient (%s) from %s read error: %v", cn.url, cn.sourceDebugName(), err)
+			log.Printf("RTMPPushClient (%s) from %s read error: %v", cn.url, cn.sourceName, err)
 			break
 		}
 		err = cn.client.Input(buf[:n])
@@ -196,18 +160,19 @@ func (cn *PushConsumer) sendToServer() {
 			cn.framesMtx.Unlock()
 
 			for _, batch := range batches {
-				for _, frame := range batch.frames {
+				//bytes := 0
+				for _, frame := range batch.Frames {
 					if firstVideo { //wait for I frame
-						if frame.cid == codec.CODECID_VIDEO_H264 && codec.IsH264IDRFrame(frame.frame) {
+						if frame.Cid == codec.CODECID_VIDEO_H264 && codec.IsH264IDRFrame(frame.Frame) {
 							firstVideo = false
-						} else if frame.cid == codec.CODECID_VIDEO_H265 && codec.IsH265IDRFrame(frame.frame) {
+						} else if frame.Cid == codec.CODECID_VIDEO_H265 && codec.IsH265IDRFrame(frame.Frame) {
 							firstVideo = false
 						} else {
 							continue
 						}
 					}
 
-					err := cn.client.WriteFrame(frame.cid, frame.frame, frame.pts, frame.dts)
+					err := cn.client.WriteFrame(frame.Cid, frame.Frame, frame.Pts, frame.Dts)
 					if err != nil {
 						log.Printf("RTMPPushClient (%s) write socket error: %v", cn.url, err)
 						return

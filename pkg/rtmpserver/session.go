@@ -16,13 +16,13 @@ type MediaSession struct {
 	conn   net.Conn
 	handle *rtmp.RtmpServerHandle
 
-	frameCome chan struct{}
-	quit      chan struct{}
-	resource  io.Closer
-	die       sync.Once //?
-	registry  registry.Registry
+	quit     chan struct{}
+	resource io.Closer
+	die      sync.Once //?
+	registry registry.Registry
 
-	producer *MediaProducer
+	producer     *MediaProducer
+	pullConsumer *PullConsumer
 }
 
 func (sess *MediaSession) init() {
@@ -32,15 +32,21 @@ func (sess *MediaSession) init() {
 	})
 
 	sess.handle.OnPlay(func(app, streamName string, start, duration float64, reset bool) rtmp.StatusCode {
-		return rtmp.NETSTREAM_PLAY_NOTFOUND
-		//if mainProducer == nil {
-		//	return rtmp.NETSTREAM_PLAY_NOTFOUND
-		//}
-		//return rtmp.NETSTREAM_PLAY_START
+		stream, err := sess.registry.GetInternalStream(streamName)
+		if err != nil {
+			log.Printf("Failed to get InternalStreamer for pull consumer %s: %v", streamName, err)
+			return rtmp.NETSTREAM_PLAY_NOTFOUND
+		}
+		if stream == nil {
+			return rtmp.NETSTREAM_PLAY_NOTFOUND
+		}
+		sess.pullConsumer = NewPullConsumer(sess, streamName)
+		stream.AddConsumer(sess.pullConsumer)
+		return rtmp.NETSTREAM_PLAY_START
 	})
 
 	sess.handle.OnPublish(func(app, streamName string) rtmp.StatusCode {
-		stream, err := sess.registry.GetStream(streamName)
+		stream, err := sess.registry.GetInternalStream(streamName)
 		if err != nil {
 			log.Printf("Failed to get %s stream info: %v", streamName, err)
 			return rtmp.NETCONNECT_CONNECT_REJECTED
@@ -49,7 +55,7 @@ func (sess *MediaSession) init() {
 			return rtmp.NETCONNECT_CONNECT_REJECTED
 		}
 
-		p := newMediaProducer(streamName, sess)
+		p := newMediaProducer(streamName, sess, stream)
 		sess.producer = p
 
 		return rtmp.NETSTREAM_PUBLISH_START
@@ -58,16 +64,12 @@ func (sess *MediaSession) init() {
 	sess.handle.OnStateChange(func(newState rtmp.RtmpState) {
 		if newState == rtmp.STATE_RTMP_PLAY_START {
 			fmt.Println("play start")
-			//name := sess.handle.GetStreamName()
-			//source := center.find(name)
-			//sess.source = source
-			//if mainProducer != nil {
-			//	cons := &PullConsumer{sess: sess}
-			//	sess.resource = cons
-			//	mainProducer.addConsumer(cons)
-			//	fmt.Println("ready to play")
-			//	go cons.sendToClient()
-			//}
+
+			if sess.pullConsumer == nil {
+				return
+			}
+			go sess.pullConsumer.sendToClient()
+			sess.resource = sess.pullConsumer
 		} else if newState == rtmp.STATE_RTMP_PUBLISH_START {
 			name := sess.handle.GetStreamName()
 			log.Printf("New rtmp stream %s", name)

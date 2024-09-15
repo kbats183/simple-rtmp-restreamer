@@ -3,6 +3,7 @@ package apiserver
 import (
 	"encoding/json"
 	"github.com/go-chi/chi/v5"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/api"
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"log"
 	"net/http"
@@ -119,7 +120,7 @@ func (router *streamRouter) addStreamTargetByStreamId() http.HandlerFunc {
 			return
 		}
 
-		err = router.registry.AddStreamTarget(chi.URLParam(r, "id"), (*registry.PushTargetUrl)(target))
+		err = router.registry.AddStreamTarget(chi.URLParam(r, "id"), (*api.PushTargetUrl)(target))
 		if err != nil {
 			handleErrors(w, err)
 			return

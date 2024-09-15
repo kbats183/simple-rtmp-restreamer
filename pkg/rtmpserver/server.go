@@ -2,6 +2,7 @@ package rtmpserver
 
 import (
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/utils"
 	"github.com/yapingcat/gomedia/go-rtmp"
 	"log"
 	"net"
@@ -39,11 +40,10 @@ func (s *MediaServer) Start() {
 
 func (s *MediaServer) newMediaSession(conn net.Conn) *MediaSession {
 	return &MediaSession{
-		id:        genId(),
-		conn:      conn,
-		handle:    rtmp.NewRtmpServerHandle(),
-		quit:      make(chan struct{}),
-		frameCome: make(chan struct{}, 1),
-		registry:  s.registry,
+		id:       utils.GenId(),
+		conn:     conn,
+		handle:   rtmp.NewRtmpServerHandle(),
+		quit:     make(chan struct{}),
+		registry: s.registry,
 	}
 }
