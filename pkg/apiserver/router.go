@@ -41,11 +41,7 @@ func (router *streamRouter) getStreams() http.HandlerFunc {
 			handleErrors(w, err)
 			return
 		}
-		objects := make([]*Stream, len(streams))
-		for i, stream := range streams {
-			objects[i] = streamFromRegistryObject(stream)
-		}
-		if err := json.NewEncoder(w).Encode(objects); err != nil {
+		if err := json.NewEncoder(w).Encode(streams); err != nil {
 			handleErrors(w, err)
 			return
 		}
@@ -61,7 +57,7 @@ func (router *streamRouter) getStreamById() http.HandlerFunc {
 			handleErrors(w, err)
 			return
 		}
-		if err := json.NewEncoder(w).Encode(streamFromRegistryObject(stream)); err != nil {
+		if err := json.NewEncoder(w).Encode(stream); err != nil {
 			handleErrors(w, err)
 			return
 		}
@@ -71,18 +67,12 @@ func (router *streamRouter) getStreamById() http.HandlerFunc {
 
 func (router *streamRouter) createStream() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var stream Stream
+		var stream registry.ExternalStream
 		if err := json.NewDecoder(r.Body).Decode(&stream); err != nil {
 			handleErrors(w, err)
 			return
 		}
-		st, err := stream.toRegistryObject()
-		if err != nil {
-			handleErrors(w, err)
-			return
-		}
-
-		err = router.registry.Update(st)
+		err := router.registry.Update(&stream)
 		if err != nil {
 			handleErrors(w, err)
 			return

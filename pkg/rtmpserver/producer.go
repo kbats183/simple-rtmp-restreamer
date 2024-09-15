@@ -1,6 +1,7 @@
 package rtmpserver
 
 import (
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"github.com/yapingcat/gomedia/go-codec"
 	"log"
 	"net/url"
@@ -53,15 +54,31 @@ func (prod *MediaProducer) start() {
 		since := time.Since(prod.currentFramesBatch.startTime)
 		if since >= time.Second {
 			if stream, err := sess.registry.GetStream(prod.name); err == nil {
-				actualTargets := make(map[url.URL]struct{})
-				for _, consumer := range prod.targetConsumers {
-					actualTargets[*consumer.url] = struct{}{}
-				}
+				registryTargets := make(map[string]struct{})
 				for _, target := range stream.Targets {
-					targetUrl := *(*url.URL)(target)
-					if _, ok := actualTargets[targetUrl]; !ok {
+					registryTargets[target] = struct{}{}
+				}
+				actualTargets := make(map[string]struct{})
+
+				newTargetConsumers := make([]*PushConsumer, 0, 10)
+				for _, consumer := range prod.targetConsumers {
+					actualTargets[consumer.url.String()] = struct{}{}
+					if _, ok := registryTargets[consumer.url.String()]; !ok {
+						_ = consumer.Close()
+					} else {
+						newTargetConsumers = append(newTargetConsumers, consumer)
+					}
+				}
+				prod.targetConsumers = newTargetConsumers
+
+				for _, target := range stream.Targets {
+					targetUrl, err := url.Parse(target)
+					if err != nil {
+						panic(err)
+					}
+					if _, ok := actualTargets[target]; !ok {
 						log.Printf("Creating PushConsumer for %s with target %s", prod.name, targetUrl.String())
-						c, err := NewPushConsumer(target)
+						c, err := NewPushConsumer((*registry.PushTargetUrl)(targetUrl))
 						if err != nil {
 							log.Printf("Failed to create push consumer for stream %s: %v", prod.name, err)
 							continue

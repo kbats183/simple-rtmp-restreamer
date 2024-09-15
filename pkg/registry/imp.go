@@ -3,6 +3,7 @@ package registry
 import (
 	"encoding/json"
 	"log"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -17,21 +18,28 @@ type registryImpl struct {
 	mux  sync.Mutex
 }
 
-func (r *registryImpl) GetStreams() ([]*Stream, error) {
-	return r.getStreamsList(), nil
+func (r *registryImpl) GetStreams() ([]*ExternalStream, error) {
+	streams := make([]*ExternalStream, 0, len(r.keys))
+	for _, key := range r.keys {
+		streams = append(streams, key.toExternalStream())
+	}
+	return streams, nil
 }
 
-func (r *registryImpl) GetStream(keyName string) (*Stream, error) {
+func (r *registryImpl) GetStream(keyName string) (*ExternalStream, error) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	if key, ok := r.keys[keyName]; ok {
-		return key, nil
+		return key.toExternalStream(), nil
 	}
 	return nil, nil
 }
 
-func (r *registryImpl) Update(key *Stream) error {
-	r.update(key)
+func (r *registryImpl) Update(key *ExternalStream) error {
+	err := r.updateFromExternal(key)
+	if err != nil {
+		return err
+	}
 	r.savePersistent()
 	return nil
 }
@@ -101,7 +109,7 @@ func (r *registryImpl) loadPersistent() {
 	}
 	defer file.Close()
 
-	var streams []Stream
+	var streams []*ExternalStream
 	err = json.NewDecoder(file).Decode(&streams)
 	if err != nil {
 		log.Printf("Failed to load restreamser registry from file: %v", err)
@@ -109,7 +117,12 @@ func (r *registryImpl) loadPersistent() {
 	}
 	for _, stream := range streams {
 		s := stream
-		r.keys[stream.Name] = &s
+		regObj, err := s.toRegistryObject()
+		if err != nil {
+			log.Printf("Failed to create restreamser registry from file: %v", err)
+			return
+		}
+		r.keys[stream.Name] = regObj
 	}
 }
 
@@ -121,7 +134,12 @@ func (r *registryImpl) savePersistent() {
 	}
 	defer file.Close()
 
-	err = json.NewEncoder(file).Encode(r.getStreamsList())
+	streams, err := r.GetStreams()
+	if err != nil {
+		log.Printf("Failed to save restreamser registry file: %v", err)
+		return
+	}
+	err = json.NewEncoder(file).Encode(streams)
 	if err != nil {
 		log.Printf("Failed to save restreamser registry file: %v", err)
 		return
@@ -132,6 +150,36 @@ func (r *registryImpl) update(key *Stream) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	r.keys[key.Name] = key
+}
+
+func (r *registryImpl) updateFromExternal(key *ExternalStream) error {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+	if _, ok := r.keys[key.Name]; ok {
+		targets := make([]*PushTargetUrl, len(key.Targets))
+		r.keys[key.Name].Targets = targets
+		for i, t := range key.Targets {
+			parse, err := url.Parse(t)
+			if err != nil {
+				return err
+			}
+			targets[i] = (*PushTargetUrl)(parse)
+		}
+	} else {
+		targets := make([]*PushTargetUrl, len(key.Targets))
+		for i, t := range key.Targets {
+			parse, err := url.Parse(t)
+			if err != nil {
+				return err
+			}
+			targets[i] = (*PushTargetUrl)(parse)
+		}
+		r.keys[key.Name] = &Stream{
+			Name:    key.Name,
+			Targets: targets,
+		}
+	}
+	return nil
 }
 
 func (r *registryImpl) deleteStream(keyName string) {
