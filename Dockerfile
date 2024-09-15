@@ -6,7 +6,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o simple-rtmp-restreamer .
+RUN CGO_ENABLED=0 GOOS=linux go build -o simple-rtmp-restreamer github.com/kbats183/simple-rtmp-restreamer/cmd/server
 
 # Stage 2: Final stage
 FROM alpine:3.14
