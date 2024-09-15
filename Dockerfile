@@ -13,7 +13,7 @@ FROM alpine:3.14
 
 WORKDIR /app
 
-COPY simple-rtmp-restreamer .
+COPY --from=build /app/simple-rtmp-restreamer .
 
 RUN apk --no-cache add ca-certificates tzdata
 
