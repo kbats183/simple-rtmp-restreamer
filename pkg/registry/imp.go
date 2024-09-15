@@ -2,6 +2,7 @@ package registry
 
 import (
 	"encoding/json"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/api"
 	"log"
 	"net/url"
 	"os"
@@ -27,10 +28,18 @@ func (r *registryImpl) GetStreams() ([]*ExternalStream, error) {
 }
 
 func (r *registryImpl) GetStream(keyName string) (*ExternalStream, error) {
+	stream, err := r.GetInternalStream(keyName)
+	if err != nil {
+		return nil, err
+	}
+	return stream.toExternalStream(), nil
+}
+
+func (r *registryImpl) GetInternalStream(keyName string) (*Stream, error) {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	if key, ok := r.keys[keyName]; ok {
-		return key.toExternalStream(), nil
+		return key, nil
 	}
 	return nil, nil
 }
@@ -71,7 +80,7 @@ func (r *registryImpl) GetStatus(keyName string) (*StreamStatus, error) {
 	return nil, StreamNotFound{}
 }
 
-func (r *registryImpl) AddStreamTarget(keyName string, target *PushTargetUrl) error {
+func (r *registryImpl) AddStreamTarget(keyName string, target *api.PushTargetUrl) error {
 	err := r.addStreamTarget(keyName, target)
 	r.savePersistent()
 	return err
@@ -117,7 +126,7 @@ func (r *registryImpl) loadPersistent() {
 	}
 	for _, stream := range streams {
 		s := stream
-		regObj, err := s.toRegistryObject()
+		regObj, err := newStream(s)
 		if err != nil {
 			log.Printf("Failed to create restreamser registry from file: %v", err)
 			return
@@ -156,44 +165,42 @@ func (r *registryImpl) updateFromExternal(key *ExternalStream) error {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	if _, ok := r.keys[key.Name]; ok {
-		targets := make([]*PushTargetUrl, len(key.Targets))
+		targets := make([]*api.PushTargetUrl, len(key.Targets))
 		r.keys[key.Name].Targets = targets
 		for i, t := range key.Targets {
 			parse, err := url.Parse(t)
 			if err != nil {
 				return err
 			}
-			targets[i] = (*PushTargetUrl)(parse)
+			targets[i] = (*api.PushTargetUrl)(parse)
 		}
 	} else {
-		targets := make([]*PushTargetUrl, len(key.Targets))
-		for i, t := range key.Targets {
-			parse, err := url.Parse(t)
-			if err != nil {
-				return err
-			}
-			targets[i] = (*PushTargetUrl)(parse)
+		stream, err := newStream(key)
+		if err != nil {
+			return err
 		}
-		r.keys[key.Name] = &Stream{
-			Name:    key.Name,
-			Targets: targets,
-		}
+		r.keys[key.Name] = stream
 	}
 	return nil
 }
 
 func (r *registryImpl) deleteStream(keyName string) {
+	if key, ok := r.keys[keyName]; ok {
+		key.Quit()
+	} else {
+		return
+	}
 	r.mux.Lock()
 	defer r.mux.Unlock()
 	delete(r.keys, keyName)
 }
 
-func (r *registryImpl) addStreamTarget(keyName string, target *PushTargetUrl) error {
+func (r *registryImpl) addStreamTarget(keyName string, target *api.PushTargetUrl) error {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 
 	if key, ok := r.keys[keyName]; ok {
-		targets := make([]*PushTargetUrl, len(key.Targets))
+		targets := make([]*api.PushTargetUrl, len(key.Targets))
 		copy(targets, key.Targets)
 		for _, t := range targets {
 			if t.String() == target.String() {
