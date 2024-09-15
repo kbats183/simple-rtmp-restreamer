@@ -6,7 +6,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o debug-stream-generator .
+RUN CGO_ENABLED=0 GOOS=linux go build -o simple-rtmp-restreamer .
 
 # Stage 2: Final stage
 FROM alpine:3.14
