@@ -10,6 +10,7 @@ func main() {
 	setupLogger()
 
 	streamRegistry := registry.NewRegistry()
+	println("Starting...")
 
 	rtmp := rtmpserver.NewMediaServer(rtmpserver.MediaServerConfig{}, streamRegistry)
 	web := apiserver.NewWebServer(streamRegistry)
