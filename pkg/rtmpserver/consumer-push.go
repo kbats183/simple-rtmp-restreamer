@@ -155,6 +155,11 @@ func (cn *PushConsumer) socketRead() (err error) {
 
 func (cn *PushConsumer) sendToServer() {
 	firstVideo := true
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.source.debugName(), r)
+		}
+	}()
 	for {
 		select {
 		case <-cn.frameCome:
@@ -177,11 +182,11 @@ func (cn *PushConsumer) sendToServer() {
 						}
 					}
 
-					defer func() {
-						if r := recover(); r != nil {
-							log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.source.debugName(), r)
-						}
-					}()
+					//defer func() {
+					//	if r := recover(); r != nil {
+					//		log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.source.debugName(), r)
+					//	}
+					//}()
 
 					err := cn.client.WriteFrame(frame.cid, frame.frame, frame.pts, frame.dts)
 					if err != nil {
