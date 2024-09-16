@@ -7,8 +7,4 @@ require (
 	github.com/yapingcat/gomedia v0.0.0-20240823161909-e61bbaf17c9a
 )
 
-require (
-	github.com/felixge/fgprof v0.9.3 // indirect
-	github.com/google/pprof v0.0.0-20211214055906-6f57359322fd // indirect
-	github.com/pkg/profile v1.7.0 // indirect
-)
+replace github.com/yapingcat/gomedia v0.0.0-20240823161909-e61bbaf17c9a => github.com/kbats183/gomedia v0.0.0-20240916060401-e994bb0f96f4
