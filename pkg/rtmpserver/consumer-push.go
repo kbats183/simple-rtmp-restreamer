@@ -1,6 +1,7 @@
 package rtmpserver
 
 import (
+	"crypto/tls"
 	"errors"
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"github.com/yapingcat/gomedia/go-codec"
@@ -8,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -56,10 +58,17 @@ func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
 			log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.source.debugName(), err)
 			time.Sleep(2 * time.Second)
 		}
-		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.source.debugName())
+		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.sourceDebugName())
 	}()
 
 	return &consumer, nil
+}
+
+func (cn *PushConsumer) sourceDebugName() string {
+	if cn.source != nil {
+		return cn.source.debugName()
+	}
+	return "source is nil!!!"
 }
 
 func (cn *PushConsumer) connection() error {
@@ -67,7 +76,16 @@ func (cn *PushConsumer) connection() error {
 	if cn.url.Port() == "" {
 		host += ":1935"
 	}
-	c, err := net.Dial("tcp4", host)
+	var err error
+	var c net.Conn
+	if strings.HasPrefix(host, "rtmps://") {
+		conf := &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		c, err = tls.Dial("tcp", host, conf)
+	} else {
+		c, err = net.Dial("tcp4", host)
+	}
 	if err != nil {
 		return err
 	}
@@ -140,7 +158,7 @@ func (cn *PushConsumer) socketRead() (err error) {
 		if err != nil && errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
-			log.Printf("RTMPPushClient (%s) from %s read error: %v", cn.url, cn.source.debugName(), err)
+			log.Printf("RTMPPushClient (%s) from %s read error: %v", cn.url, cn.sourceDebugName(), err)
 			break
 		}
 		err = cn.client.Input(buf[:n])
@@ -155,9 +173,10 @@ func (cn *PushConsumer) socketRead() (err error) {
 
 func (cn *PushConsumer) sendToServer() {
 	firstVideo := true
+	// TODO: Maybe we need to call Close method in the defer!
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.source.debugName(), r)
+			log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.sourceDebugName(), r)
 		}
 	}()
 	for {
@@ -168,9 +187,7 @@ func (cn *PushConsumer) sendToServer() {
 			cn.framesBatches = nil
 			cn.framesMtx.Unlock()
 
-			//log.Printf("Process %d frames", len(frames))
 			for _, batch := range batches {
-				//bytes := 0
 				for _, frame := range batch.frames {
 					if firstVideo { //wait for I frame
 						if frame.cid == codec.CODECID_VIDEO_H264 && codec.IsH264IDRFrame(frame.frame) {
@@ -182,21 +199,12 @@ func (cn *PushConsumer) sendToServer() {
 						}
 					}
 
-					//defer func() {
-					//	if r := recover(); r != nil {
-					//		log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.source.debugName(), r)
-					//	}
-					//}()
-
 					err := cn.client.WriteFrame(frame.cid, frame.frame, frame.pts, frame.dts)
 					if err != nil {
 						log.Printf("RTMPPushClient (%s) write socket error: %v", cn.url, err)
 						return
 					}
-					//bytes += len(frame.frame)
 				}
-
-				//log.Printf("Push %d kbps", bytes*8/1024)
 			}
 		case <-cn.quit:
 			return

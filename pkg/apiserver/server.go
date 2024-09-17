@@ -21,7 +21,7 @@ func NewWebServer(registry registry.Registry) *webServer {
 
 	streamRouter := newStreamsRouter(router, registry)
 	streamRouter.Routes()
-	//router.Mount("/debug", middleware.Profiler())
+	router.Mount("/debug", middleware.Profiler())
 
 	return &webServer{
 		registry: registry,

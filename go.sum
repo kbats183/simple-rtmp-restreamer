@@ -2,3 +2,4 @@ github.com/go-chi/chi/v5 v5.1.0 h1:acVI1TYaD+hhedDJ3r54HyA6sExp3HfXq7QWEEY/xMw=
 github.com/go-chi/chi/v5 v5.1.0/go.mod h1:DslCQbL2OYiznFReuXYUmQ2hGd1aDpCnlMNITLSKoi8=
 github.com/kbats183/gomedia v0.0.0-20240916060401-e994bb0f96f4 h1:Bhzprmgf/3tbaX7Jhkq+LgskWy+J+dOJpAYM28tY1lI=
 github.com/kbats183/gomedia v0.0.0-20240916060401-e994bb0f96f4/go.mod h1:WSZ59bidJOO40JSJmLqlkBJrjZCtjbKKkygEMfzY/kc=
+github.com/kbats183/gomedia v0.0.0-20240917030601-3459369abbee/go.mod h1:WSZ59bidJOO40JSJmLqlkBJrjZCtjbKKkygEMfzY/kc=
