@@ -1,11 +1,15 @@
 package rtmpserver
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"github.com/yapingcat/gomedia/go-rtmp"
 	"log"
 	"net"
 	"strconv"
+	"sync"
 )
 
 func prepareConfig(config MediaServerConfig) MediaServerConfig {
@@ -15,25 +19,62 @@ func prepareConfig(config MediaServerConfig) MediaServerConfig {
 	return config
 }
 
+type MediaServer struct {
+	config   MediaServerConfig
+	registry registry.Registry
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+}
+
 func NewMediaServer(config MediaServerConfig, registry registry.Registry) *MediaServer {
 	config = prepareConfig(config)
+	ctx, cancel := context.WithCancel(context.Background())
 	return &MediaServer{
 		config:   config,
 		registry: registry,
+		ctx:      ctx,
+		cancel:   cancel,
+		wg:       sync.WaitGroup{},
 	}
 }
 
-func (s *MediaServer) Start() {
+func (s *MediaServer) Start(ctx context.Context) error {
 	addr := "0.0.0.0:" + strconv.Itoa(s.config.Port)
 	listen, err := net.Listen("tcp4", addr)
 	if err != nil {
-		log.Fatalf("Failed to start RTMP server: %v", err)
+		return fmt.Errorf("failed to start RTMP server: %v", err)
 	}
+	defer listen.Close()
+
+	go func() {
+		<-ctx.Done()
+		listen.Close()
+	}()
+
 	for {
-		conn, _ := listen.Accept()
+		conn, err := listen.Accept()
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+			log.Printf("Error accepting connection: %v", err)
+			continue
+		}
+
 		sess := s.newMediaSession(conn)
 		sess.init()
-		go sess.start()
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			sess.start(ctx)
+		}()
+
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
 	}
 }
 
@@ -45,5 +86,11 @@ func (s *MediaServer) newMediaSession(conn net.Conn) *MediaSession {
 		quit:      make(chan struct{}),
 		frameCome: make(chan struct{}, 1),
 		registry:  s.registry,
+		ctx:       s.ctx,
 	}
+}
+
+func (s *MediaServer) Stop() {
+	s.cancel()
+	s.wg.Wait()
 }

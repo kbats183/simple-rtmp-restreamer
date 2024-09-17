@@ -1,6 +1,7 @@
 package rtmpserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 type MediaSession struct {
@@ -23,6 +25,7 @@ type MediaSession struct {
 	registry  registry.Registry
 
 	producer *MediaProducer
+	ctx      context.Context
 }
 
 func (sess *MediaSession) init() {
@@ -84,21 +87,35 @@ func (sess *MediaSession) init() {
 	})
 }
 
-func (sess *MediaSession) start() {
+func (sess *MediaSession) start(ctx context.Context) {
 	defer sess.stop()
 	for {
-		buf := make([]byte, 65536)
-		n, err := sess.conn.Read(buf)
-		if err != nil && errors.Is(err, io.EOF) {
+		select {
+		case <-ctx.Done():
 			return
-		} else if err != nil {
-			log.Printf("MediaSession read error: %v", err)
-			return
-		}
-		err = sess.handle.Input(buf[:n])
-		if err != nil {
-			log.Printf("MediaSession handle error: %v", err)
-			return
+		default:
+			buf := make([]byte, 65536)
+			err := sess.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+			if err != nil {
+				log.Printf("MediaSession set read deadline error: %v", err)
+				return
+			}
+			n, err := sess.conn.Read(buf)
+			if err != nil {
+				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+					return
+				}
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					continue
+				}
+				log.Printf("MediaSession read error: %v", err)
+				return
+			}
+			err = sess.handle.Input(buf[:n])
+			if err != nil {
+				log.Printf("MediaSession handle error: %v", err)
+				return
+			}
 		}
 	}
 }
