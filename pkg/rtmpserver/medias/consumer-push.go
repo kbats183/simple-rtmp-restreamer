@@ -1,9 +1,8 @@
-package rtmpserver
+package medias
 
 import (
 	"crypto/tls"
 	"errors"
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"github.com/yapingcat/gomedia/go-codec"
 	"github.com/yapingcat/gomedia/go-rtmp"
 	"log"
@@ -12,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type PushConsumer struct {
@@ -148,7 +146,7 @@ func (cn *PushConsumer) sendToServer() {
 	// TODO: Maybe we need to call Close method in the defer!
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.sourceDebugName(), r)
+			log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.sourceName, r)
 		}
 	}()
 	for {
