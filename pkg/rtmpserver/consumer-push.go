@@ -36,6 +36,21 @@ type PushConsumer struct {
 	source *MediaProducer
 }
 
+func (consumer *PushConsumer) reconnection() bool {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("RTMPPushClient (%s) connection panic: %v", consumer.url, r)
+		}
+	}()
+	err := consumer.connection()
+	if consumer.quited.Load() {
+		return false
+	}
+	log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.sourceDebugName(), err)
+	time.Sleep(2 * time.Second)
+	return true
+}
+
 func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
 	consumer := PushConsumer{
 		id:        genId(),
@@ -47,18 +62,9 @@ func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
 
 	go func() {
 		for {
-			// TODO: memory leak here
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("RTMPPushClient (%s) connection panic: %v", consumer.url, r)
-				}
-			}()
-			err := consumer.connection()
-			if consumer.quited.Load() {
+			if !consumer.reconnection() {
 				break
 			}
-			log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.sourceDebugName(), err)
-			time.Sleep(2 * time.Second)
 		}
 		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.sourceDebugName())
 	}()
@@ -157,7 +163,6 @@ func (cn *PushConsumer) socketRead() (err error) {
 	n := 0
 	for {
 		n, err = cn.conn.Read(buf)
-		println(err)
 		if err != nil && errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
