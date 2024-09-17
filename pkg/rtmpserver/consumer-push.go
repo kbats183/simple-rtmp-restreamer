@@ -32,6 +32,7 @@ type PushConsumer struct {
 	framesMtx     sync.Mutex
 	frameCome     chan struct{}
 
+	// TODO: this field used only for logging
 	source *MediaProducer
 }
 
@@ -46,6 +47,7 @@ func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
 
 	go func() {
 		for {
+			// TODO: memory leak here
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("RTMPPushClient (%s) connection panic: %v", consumer.url, r)
@@ -55,7 +57,7 @@ func NewPushConsumer(rtmpUrl *registry.PushTargetUrl) (*PushConsumer, error) {
 			if consumer.quited.Load() {
 				break
 			}
-			log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.source.debugName(), err)
+			log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.sourceDebugName(), err)
 			time.Sleep(2 * time.Second)
 		}
 		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.sourceDebugName())
