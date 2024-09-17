@@ -80,7 +80,7 @@ func (cn *PushConsumer) connection() error {
 	}
 	var err error
 	var c net.Conn
-	if strings.HasPrefix(host, "rtmps://") {
+	if strings.HasPrefix(cn.url.Scheme, "rtmps") {
 		conf := &tls.Config{
 			InsecureSkipVerify: true,
 		}
@@ -157,6 +157,7 @@ func (cn *PushConsumer) socketRead() (err error) {
 	n := 0
 	for {
 		n, err = cn.conn.Read(buf)
+		println(err)
 		if err != nil && errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
