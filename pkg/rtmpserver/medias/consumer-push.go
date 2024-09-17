@@ -88,6 +88,9 @@ func (cn *PushConsumer) Play(frame *MediaFrameBatch) {
 	//	return
 	//}
 	cn.framesMtx.Lock()
+	if len(cn.framesBatches) >= 40 {
+		cn.framesBatches = cn.framesBatches[:20]
+	}
 	cn.framesBatches = append(cn.framesBatches, frame)
 	cn.framesMtx.Unlock()
 	select {
@@ -158,7 +161,6 @@ func (cn *PushConsumer) sendToServer() {
 			cn.framesMtx.Unlock()
 
 			for _, batch := range batches {
-				//bytes := 0
 				for _, frame := range batch.Frames {
 					if firstVideo { //wait for I frame
 						if frame.Cid == codec.CODECID_VIDEO_H264 && codec.IsH264IDRFrame(frame.Frame) {

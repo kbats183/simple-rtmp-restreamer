@@ -74,7 +74,6 @@ func (c *PullConsumer) sendToClient() {
 
 			log.Printf("Process %d frame bathces", len(batches))
 			for _, batch := range batches {
-				//bytes := 0
 				for _, frame := range batch.Frames {
 					if firstVideo { //wait for I frame
 						if frame.Cid == codec.CODECID_VIDEO_H264 && codec.IsH264IDRFrame(frame.Frame) {
@@ -86,21 +85,20 @@ func (c *PullConsumer) sendToClient() {
 						}
 					}
 
-					defer func() {
-						if r := recover(); r != nil {
-							log.Printf("WARNING! RTMPPullClient (%s) from %s write frame error: %v", c.Id(), c.sourceName, r)
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								log.Printf("WARNING! RTMPPullClient (%s) from %s write frame error: %v", c.Id(), c.sourceName, r)
+							}
+						}()
+
+						err := c.sess.handle.WriteFrame(frame.Cid, frame.Frame, frame.Pts, frame.Dts)
+						if err != nil {
+							log.Printf("RTMPPullClient (%s) write socket error: %v", c.Id(), err)
+							return
 						}
 					}()
-
-					err := c.sess.handle.WriteFrame(frame.Cid, frame.Frame, frame.Pts, frame.Dts)
-					if err != nil {
-						log.Printf("RTMPPullClient (%s) write socket error: %v", c.Id(), err)
-						return
-					}
-					//bytes += len(frame.frame)
 				}
-
-				//log.Printf("Push %d kbps", bytes*8/1024)
 			}
 		case <-c.quit:
 			return

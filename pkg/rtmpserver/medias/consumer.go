@@ -32,17 +32,23 @@ func NewPushConsumer(rtmpUrl *api.PushTargetUrl, sourceName string) (*PushConsum
 
 	go func() {
 		for {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("RTMPPushClient (%s) connection panic: %v", consumer.url, r)
+			// TODO: maybe make separate function
+			if func() bool {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("RTMPPushClient (%s) connection panic: %v", consumer.url, r)
+					}
+				}()
+				err := consumer.connection()
+				if consumer.quited.Load() {
+					return true
 				}
-			}()
-			err := consumer.connection()
-			if consumer.quited.Load() {
+				log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.sourceName, err)
+				time.Sleep(2 * time.Second)
+				return false
+			}() {
 				break
 			}
-			log.Printf("RTMPPushClient (%s) from %s failed: %v", consumer.url, consumer.sourceName, err)
-			time.Sleep(2 * time.Second)
 		}
 		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.sourceName)
 	}()

@@ -47,8 +47,20 @@ func newStream(key *ExternalStream) (*Stream, error) {
 	return s, nil
 }
 
+// TODO: REMOVE THIS!! ONLY DEBUG
+////func Map[T, V any](ts []T, fn func(T) V) []V {
+////	result := make([]V, len(ts))
+////	for i, t := range ts {
+////		result[i] = fn(t)
+////	}
+////	return result
+//}
+
 func (s *Stream) OnFrameBatch(frame *medias.MediaFrameBatch) {
 	s.framesBatches <- frame
+	//log.Printf("%s PUSHES: %s", s.Name, strings.Join(Map(s.targetConsumers, func(it medias.MediaPushConsumer) string {
+	//	return it.Target()
+	//}), ", "))
 	log.Printf("Stream %s handle batch: %s", s.Name, frame.StartTime.Format(time.RFC822))
 }
 
