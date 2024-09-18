@@ -4,7 +4,6 @@ import (
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/rtmpserver/medias"
 	"github.com/yapingcat/gomedia/go-codec"
-	"log"
 	"sync"
 	"time"
 )
@@ -51,7 +50,6 @@ func (prod *MediaProducer) start() {
 
 		since := time.Since(prod.currentFramesBatch.StartTime)
 		if since >= time.Second || isIFrame {
-			log.Printf("Since %d", since.Milliseconds())
 			var bytes int
 			for _, mediaFrame := range prod.currentFramesBatch.Frames {
 				bytes += len(mediaFrame.Frame)

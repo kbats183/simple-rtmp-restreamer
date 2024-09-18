@@ -84,8 +84,6 @@ func (s *Stream) dispatch() {
 		timer := time.After(time.Second * 30)
 		select {
 		case batch := <-s.framesBatches:
-			log.Printf("RTMPPrudecer %s dispatch %d frames batch %d", s.Name, len(batch.Frames), batch.Frames[0].Dts)
-
 			s.updateConsumers()
 
 			s.mu.Lock()
