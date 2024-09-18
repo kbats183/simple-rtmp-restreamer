@@ -6,22 +6,24 @@ import (
 )
 
 type MediaFrame struct {
-	Time  time.Time
-	Cid   codec.CodecID
-	Frame []byte
-	Pts   uint32
-	Dts   uint32
+	Time     time.Time
+	Cid      codec.CodecID
+	Frame    []byte
+	Pts      uint32
+	Dts      uint32
+	IsIFrame bool
 }
 
 func (f *MediaFrame) clone() MediaFrame {
 	frames := make([]byte, len(f.Frame))
 	copy(frames, f.Frame)
 	return MediaFrame{
-		Cid:   f.Cid,
-		Pts:   f.Pts,
-		Dts:   f.Dts,
-		Time:  f.Time,
-		Frame: frames,
+		Cid:      f.Cid,
+		Pts:      f.Pts,
+		Dts:      f.Dts,
+		Time:     f.Time,
+		Frame:    frames,
+		IsIFrame: f.IsIFrame,
 	}
 }
 

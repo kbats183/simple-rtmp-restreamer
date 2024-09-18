@@ -3,7 +3,6 @@ package medias
 import (
 	"crypto/tls"
 	"errors"
-	"github.com/yapingcat/gomedia/go-codec"
 	"github.com/yapingcat/gomedia/go-rtmp"
 	"log"
 	"net"
@@ -163,9 +162,7 @@ func (cn *PushConsumer) sendToServer() {
 			for _, batch := range batches {
 				for _, frame := range batch.Frames {
 					if firstVideo { //wait for I frame
-						if frame.Cid == codec.CODECID_VIDEO_H264 && codec.IsH264IDRFrame(frame.Frame) {
-							firstVideo = false
-						} else if frame.Cid == codec.CODECID_VIDEO_H265 && codec.IsH265IDRFrame(frame.Frame) {
+						if frame.IsIFrame {
 							firstVideo = false
 						} else {
 							continue
