@@ -88,8 +88,8 @@ func (cn *PushConsumer) Play(frame *MediaFrameBatch) {
 	//	return
 	//}
 	cn.framesMtx.Lock()
-	if len(cn.framesBatches) >= 60 {
-		cn.framesBatches = cn.framesBatches[:30]
+	if len(cn.framesBatches) >= 90 {
+		cn.framesBatches = cn.framesBatches[:45]
 	}
 	cn.framesBatches = append(cn.framesBatches, frame)
 	cn.framesMtx.Unlock()
