@@ -1,0 +1,9 @@
+services:
+  restreamer:
+    image: ghcr.io/kbats183/simple-rtmp-restreamer:latest
+    container_name: "restreamer"
+    volumes:
+      - ./simple-rtmp-restreamer.data.json:/app/simple-rtmp-restreamer.data.json
+    ports:
+      - "1935:1935"
+      - "6070:6070"
