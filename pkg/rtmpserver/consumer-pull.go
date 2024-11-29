@@ -60,6 +60,21 @@ func (c *PullConsumer) IsClosed() bool {
 	return c.quited.Load()
 }
 
+func (c *PullConsumer) sendFrame(frame *medias.MediaFrame) bool {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("WARNING! RTMPPullClient (%s) from %s write frame error: %v", c.Id(), c.sourceName, r)
+		}
+	}()
+
+	err := c.sess.handle.WriteFrame(frame.Cid, frame.Frame, frame.Pts, frame.Dts)
+	if err != nil {
+		log.Printf("RTMPPullClient (%s) write socket error: %v", c.Id(), err)
+		return false
+	}
+	return true
+}
+
 func (c *PullConsumer) sendToClient() {
 	log.Printf("PullConsumer dispatch (%s) id %s", c.sourceName, c.Id())
 	firstVideo := true
@@ -82,19 +97,9 @@ func (c *PullConsumer) sendToClient() {
 						}
 					}
 
-					func() {
-						defer func() {
-							if r := recover(); r != nil {
-								log.Printf("WARNING! RTMPPullClient (%s) from %s write frame error: %v", c.Id(), c.sourceName, r)
-							}
-						}()
-
-						err := c.sess.handle.WriteFrame(frame.Cid, frame.Frame, frame.Pts, frame.Dts)
-						if err != nil {
-							log.Printf("RTMPPullClient (%s) write socket error: %v", c.Id(), err)
-							return
-						}
-					}()
+					if !c.sendFrame(&frame) {
+						return
+					}
 				}
 			}
 		case <-c.quit:

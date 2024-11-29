@@ -88,8 +88,8 @@ func (sess *MediaSession) init() {
 
 func (sess *MediaSession) start() {
 	defer sess.stop()
+	buf := make([]byte, 65536)
 	for {
-		buf := make([]byte, 65536)
 		n, err := sess.conn.Read(buf)
 		if err != nil && errors.Is(err, io.EOF) {
 			return

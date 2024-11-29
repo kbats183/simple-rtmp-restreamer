@@ -3,6 +3,8 @@ package medias
 import (
 	"crypto/tls"
 	"errors"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/api"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/utils"
 	"github.com/yapingcat/gomedia/go-rtmp"
 	"log"
 	"net"
@@ -10,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type PushConsumer struct {
@@ -30,6 +33,44 @@ type PushConsumer struct {
 	frameCome     chan struct{}
 
 	sourceName string
+}
+
+func NewPushConsumer(rtmpUrl *api.PushTargetUrl, sourceName string) (*PushConsumer, error) {
+	consumer := PushConsumer{
+		id:            utils.GenId(),
+		url:           (*url.URL)(rtmpUrl),
+		frameCome:     make(chan struct{}, 1),
+		onReady:       make(chan struct{}),
+		quit:          make(chan struct{}),
+		framesBatches: make([]*MediaFrameBatch, 0, 90), // 24 + 8 * 90 = 744 bytes (64 bit)
+		sourceName:    sourceName,
+	}
+
+	go func() {
+		for {
+			if consumer.connect() {
+				break
+			}
+		}
+		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.sourceName)
+	}()
+
+	return &consumer, nil
+}
+
+func (cn *PushConsumer) connect() bool {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("RTMPPushClient (%s) connection panic: %v", cn.url, r)
+		}
+	}()
+	err := cn.connection()
+	if cn.quited.Load() {
+		return true
+	}
+	log.Printf("RTMPPushClient (%s) from %s failed: %v", cn.url, cn.sourceName, err)
+	time.Sleep(2 * time.Second)
+	return false
 }
 
 func (cn *PushConsumer) connection() error {
@@ -143,14 +184,23 @@ func (cn *PushConsumer) socketRead() (err error) {
 	return err
 }
 
-func (cn *PushConsumer) sendToServer() {
-	firstVideo := true
-	// TODO: Maybe we need to call Close method in the defer!
+func (cn *PushConsumer) sendFrame(frame *MediaFrame) bool {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("WARNING! RTMPPushClient (%s) from %s write frame error: %v", cn.url, cn.sourceName, r)
 		}
 	}()
+
+	err := cn.client.WriteFrame(frame.Cid, frame.Frame, frame.Pts, frame.Dts)
+	if err != nil {
+		log.Printf("RTMPPushClient (%s) write socket error: %v", cn.url, err)
+		return false
+	}
+	return true
+}
+
+func (cn *PushConsumer) sendToServer() {
+	firstVideo := true
 	for {
 		select {
 		case <-cn.frameCome:
@@ -169,9 +219,7 @@ func (cn *PushConsumer) sendToServer() {
 						}
 					}
 
-					err := cn.client.WriteFrame(frame.Cid, frame.Frame, frame.Pts, frame.Dts)
-					if err != nil {
-						log.Printf("RTMPPushClient (%s) write socket error: %v", cn.url, err)
+					if !cn.sendFrame(&frame) {
 						return
 					}
 				}
