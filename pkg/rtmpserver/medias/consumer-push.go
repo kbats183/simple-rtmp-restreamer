@@ -87,6 +87,7 @@ func (cn *PushConsumer) connection() error {
 	var c net.Conn
 	if strings.HasPrefix(cn.url.Scheme, "rtmps") {
 		conf := &tls.Config{
+			ServerName:         cn.url.Hostname(),
 			InsecureSkipVerify: true,
 		}
 		c, err = tls.Dial("tcp", host, conf)
