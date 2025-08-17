@@ -3,9 +3,6 @@ package medias
 import (
 	"crypto/tls"
 	"errors"
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/api"
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/utils"
-	"github.com/yapingcat/gomedia/go-rtmp"
 	"log"
 	"net"
 	"net/url"
@@ -13,6 +10,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/api"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/utils"
+	"github.com/yapingcat/gomedia/go-rtmp"
 )
 
 type PushConsumer struct {
@@ -76,7 +77,11 @@ func (cn *PushConsumer) connect() bool {
 func (cn *PushConsumer) connection() error {
 	host := cn.url.Host
 	if cn.url.Port() == "" {
-		host += ":1935"
+		if strings.HasPrefix(cn.url.Scheme, "rtmps") {
+			host += ":443"
+		} else {
+			host += ":1935"
+		}
 	}
 	var err error
 	var c net.Conn
