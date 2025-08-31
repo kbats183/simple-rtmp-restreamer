@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTMP Restreamer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>RTMP Restreamer</h1>
+            <p>Manage your RTMP streams and targets</p>
+        </header>
+
+        <div class="controls">
+            <button id="addStreamBtn" class="btn btn-primary">Add New Stream</button>
+            <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
+        </div>
+
+        <div class="streams-container">
+            <h2>Streams</h2>
+            <div id="streamsList" class="streams-list">
+                <div class="loading">Loading streams...</div>
+            </div>
+        </div>
+
+        <!-- Add Stream Modal -->
+        <div id="addStreamModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add New Stream</h3>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="addStreamForm">
+                        <div class="form-group">
+                            <label for="streamName">Stream Name:</label>
+                            <input type="text" id="streamName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="streamTargets">RTMP Targets (one per line):</label>
+                            <textarea id="streamTargets" rows="4" placeholder="rtmp://example.com/live/stream_key"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Create Stream</button>
+                            <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Target Modal -->
+        <div id="addTargetModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add Target</h3>
+                    <span class="close">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <form id="addTargetForm">
+                        <div class="form-group">
+                            <label for="targetUrl">RTMP Target URL:</label>
+                            <input type="text" id="targetUrl" placeholder="rtmp://example.com/live/stream_key" required>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">Add Target</button>
+                            <button type="button" class="btn btn-secondary cancel-btn">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
