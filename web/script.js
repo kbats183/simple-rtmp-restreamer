@@ -56,6 +56,9 @@ class RTMPRestreamer {
             return;
         }
 
+        // Debug: log the streams data
+        console.log('Streams data:', streams);
+
         // Load status for all streams
         const streamStatuses = {};
         for (const stream of streams) {
@@ -69,6 +72,9 @@ class RTMPRestreamer {
             }
         }
 
+        // Sort streams alphabetically by name to maintain consistent order
+        streams.sort((a, b) => a.name.localeCompare(b.name));
+        
         const html = streams.map(stream => this.renderStreamCard(stream, streamStatuses[stream.name])).join('');
         container.innerHTML = html;
 
@@ -86,6 +92,14 @@ class RTMPRestreamer {
                 this.showAddTargetModal(streamName);
             });
         });
+
+        container.querySelectorAll('.delete-target').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const streamName = e.target.dataset.streamName;
+                const target = e.target.dataset.target;
+                this.deleteTarget(streamName, target);
+            });
+        });
     }
 
     renderStreamCard(stream, status) {
@@ -94,13 +108,24 @@ class RTMPRestreamer {
         const lastFrameTime = status?.last_frame_time ? new Date(status.last_frame_time * 1000).toLocaleString() : 'Never';
         
         const targetsHtml = stream.targets && stream.targets.length > 0 
-            ? stream.targets.map(target => `<div class="target-item">${this.escapeHtml(target)}</div>`).join('')
+            ? stream.targets.map(target => {
+                // Handle both old format (string) and new format (object with name/url)
+                const targetName = typeof target === 'string' ? target : (target?.name || '');
+                const targetUrl = typeof target === 'string' ? target : (target?.url || '');
+                return `
+                    <div class="target-item">
+                        <span class="target-name">${this.escapeHtml(targetName)}</span>
+                        <span class="target-url">${this.escapeHtml(targetUrl)}</span>
+                        <button class="btn btn-danger btn-tiny delete-target" data-stream-name="${this.escapeHtml(stream.name || '')}" data-target="${this.escapeHtml(targetUrl)}">×</button>
+                    </div>
+                `;
+            }).join('')
             : '<div class="target-item">No targets configured</div>';
 
         return `
             <div class="stream-card ${isLive ? 'live' : 'offline'}">
                 <div class="stream-header">
-                    <div class="stream-name">${this.escapeHtml(stream.name)}</div>
+                    <div class="stream-name">${this.escapeHtml(stream.name || '')}</div>
                     <div class="stream-status ${isLive ? 'live' : 'offline'}">
                         <div class="status-dot"></div>
                         ${isLive ? 'LIVE' : 'OFFLINE'}
@@ -110,7 +135,7 @@ class RTMPRestreamer {
                 <div class="stream-info">
                     <div><strong>Bitrate:</strong> ${bitrate} kbps</div>
                     <div><strong>Last Frame:</strong> ${lastFrameTime}</div>
-                    <div><strong>RTMP URL:</strong> rtmp://localhost:1935/live/${this.escapeHtml(stream.name)}</div>
+                    <div><strong>RTMP URL:</strong> rtmp://localhost:1935/live/${this.escapeHtml(stream.name || '')}</div>
                 </div>
 
                 <div class="stream-targets">
@@ -119,10 +144,10 @@ class RTMPRestreamer {
                 </div>
 
                 <div class="stream-actions">
-                    <button class="btn btn-primary btn-small add-target" data-stream-name="${this.escapeHtml(stream.name)}">
+                    <button class="btn btn-primary btn-small add-target" data-stream-name="${this.escapeHtml(stream.name || '')}">
                         Add Target
                     </button>
-                    <button class="btn btn-danger btn-small delete-stream" data-stream-name="${this.escapeHtml(stream.name)}">
+                    <button class="btn btn-danger btn-small delete-stream" data-stream-name="${this.escapeHtml(stream.name || '')}">
                         Delete Stream
                     </button>
                 </div>
@@ -160,7 +185,10 @@ class RTMPRestreamer {
         }
 
         const targets = targetsText ? 
-            targetsText.split('\n').map(t => t.trim()).filter(t => t) : 
+            targetsText.split('\n').map(t => t.trim()).filter(t => t).map(url => ({
+                name: url,  // Use URL as name for backward compatibility
+                url: url
+            })) : 
             [];
 
         try {
@@ -193,7 +221,13 @@ class RTMPRestreamer {
     async handleAddTarget(e) {
         e.preventDefault();
         
+        const targetName = document.getElementById('targetName').value.trim();
         const targetUrl = document.getElementById('targetUrl').value.trim();
+        
+        if (!targetName) {
+            this.showError('Target name is required');
+            return;
+        }
         
         if (!targetUrl) {
             this.showError('Target URL is required');
@@ -212,6 +246,7 @@ class RTMPRestreamer {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
+                    name: targetName,
                     target: targetUrl
                 })
             });
@@ -254,6 +289,35 @@ class RTMPRestreamer {
         }
     }
 
+    async deleteTarget(streamName, target) {
+        if (!confirm(`Are you sure you want to delete target "${target}"?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.apiBase}/${encodeURIComponent(streamName)}/targets`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    target: target
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `HTTP ${response.status}`);
+            }
+
+            this.loadStreams();
+            this.showSuccess('Target deleted successfully');
+        } catch (error) {
+            console.error('Failed to delete target:', error);
+            this.showError('Failed to delete target: ' + error.message);
+        }
+    }
+
     showError(message) {
         this.showNotification(message, 'error');
     }
@@ -293,7 +357,8 @@ class RTMPRestreamer {
     }
 
     escapeHtml(unsafe) {
-        return unsafe
+        if (unsafe == null) return '';
+        return String(unsafe)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")

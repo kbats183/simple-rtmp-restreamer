@@ -80,8 +80,14 @@ func (r *registryImpl) GetStatus(keyName string) (*StreamStatus, error) {
 	return nil, StreamNotFound{}
 }
 
-func (r *registryImpl) AddStreamTarget(keyName string, target *api.PushTargetUrl) error {
-	err := r.addStreamTarget(keyName, target)
+func (r *registryImpl) AddStreamTarget(keyName string, target *api.PushTargetUrl, targetName string) error {
+	err := r.addStreamTarget(keyName, target, targetName)
+	r.savePersistent()
+	return err
+}
+
+func (r *registryImpl) DeleteStreamTarget(keyName string, target string) error {
+	err := r.deleteStreamTarget(keyName, target)
 	r.savePersistent()
 	return err
 }
@@ -164,16 +170,21 @@ func (r *registryImpl) update(key *Stream) {
 func (r *registryImpl) updateFromExternal(key *ExternalStream) error {
 	r.mux.Lock()
 	defer r.mux.Unlock()
-	if _, ok := r.keys[key.Name]; ok {
+	if stream, ok := r.keys[key.Name]; ok {
 		targets := make([]*api.PushTargetUrl, len(key.Targets))
-		r.keys[key.Name].Targets = targets
+		targetNames := make(map[string]string)
+		
 		for i, t := range key.Targets {
-			parse, err := url.Parse(t)
+			parse, err := url.Parse(t.URL)
 			if err != nil {
 				return err
 			}
 			targets[i] = (*api.PushTargetUrl)(parse)
+			targetNames[t.URL] = t.Name
 		}
+		
+		stream.Targets = targets
+		stream.TargetNames = targetNames
 	} else {
 		stream, err := newStream(key)
 		if err != nil {
@@ -195,20 +206,54 @@ func (r *registryImpl) deleteStream(keyName string) {
 	delete(r.keys, keyName)
 }
 
-func (r *registryImpl) addStreamTarget(keyName string, target *api.PushTargetUrl) error {
+func (r *registryImpl) addStreamTarget(keyName string, target *api.PushTargetUrl, targetName string) error {
 	r.mux.Lock()
 	defer r.mux.Unlock()
 
 	if key, ok := r.keys[keyName]; ok {
-		targets := make([]*api.PushTargetUrl, len(key.Targets))
-		copy(targets, key.Targets)
-		for _, t := range targets {
-			if t.String() == target.String() {
+		targetURL := target.String()
+		
+		// Check if target already exists
+		for _, t := range key.Targets {
+			if t.String() == targetURL {
 				return nil
 			}
 		}
-		targets = append(targets, target)
-		key.Targets = targets
+		
+		// Add target
+		key.Targets = append(key.Targets, target)
+		
+		// Initialize TargetNames map if nil
+		if key.TargetNames == nil {
+			key.TargetNames = make(map[string]string)
+		}
+		
+		// Store the target name
+		key.TargetNames[targetURL] = targetName
+		
+		return nil
+	}
+	return StreamNotFound{}
+}
+
+func (r *registryImpl) deleteStreamTarget(keyName string, target string) error {
+	r.mux.Lock()
+	defer r.mux.Unlock()
+
+	if key, ok := r.keys[keyName]; ok {
+		newTargets := make([]*api.PushTargetUrl, 0, len(key.Targets))
+		for _, t := range key.Targets {
+			if t.String() != target {
+				newTargets = append(newTargets, t)
+			}
+		}
+		key.Targets = newTargets
+		
+		// Also remove from TargetNames map
+		if key.TargetNames != nil {
+			delete(key.TargetNames, target)
+		}
+		
 		return nil
 	}
 	return StreamNotFound{}

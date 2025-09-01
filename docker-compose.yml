@@ -4,6 +4,7 @@ services:
     container_name: "restreamer"
     volumes:
       - ./simple-rtmp-restreamer.data.json:/app/simple-rtmp-restreamer.data.json
+      - ./web:/app/web
     ports:
       - "1935:1935"
       - "6070:6070"

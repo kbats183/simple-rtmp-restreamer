@@ -12,9 +12,10 @@ import (
 )
 
 type Stream struct {
-	Name    string               `json:"name"`
-	Targets []*api.PushTargetUrl `json:"targets"`
-	status  *streamStatus
+	Name        string               `json:"name"`
+	Targets     []*api.PushTargetUrl `json:"targets"`
+	TargetNames map[string]string    `json:"target_names"` // URL -> Name mapping
+	status      *streamStatus
 
 	targetConsumers []medias.MediaPushConsumer
 	consumers       []medias.MediaConsumer
@@ -29,16 +30,21 @@ type Stream struct {
 
 func newStream(key *ExternalStream) (*Stream, error) {
 	targets := make([]*api.PushTargetUrl, len(key.Targets))
+	targetNames := make(map[string]string)
+	
 	for i, t := range key.Targets {
-		parse, err := url.Parse(t)
+		parse, err := url.Parse(t.URL)
 		if err != nil {
 			return nil, err
 		}
 		targets[i] = (*api.PushTargetUrl)(parse)
+		targetNames[t.URL] = t.Name
 	}
+	
 	s := &Stream{
 		Name:            key.Name,
 		Targets:         targets,
+		TargetNames:     targetNames,
 		consumers:       make([]medias.MediaConsumer, 0, 10),
 		targetConsumers: make([]medias.MediaPushConsumer, 0, 10),
 		framesBatches:   make(chan *medias.MediaFrameBatch, 3000),

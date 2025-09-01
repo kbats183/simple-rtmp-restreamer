@@ -32,6 +32,7 @@ func (router *streamRouter) Routes() {
 		r.Delete("/{id}", router.deleteBankByID())
 		r.Get("/{id}/status", router.getStreamStatusById())
 		r.Post("/{id}/targets", router.addStreamTargetByStreamId())
+		r.Delete("/{id}/targets", router.deleteStreamTargetByStreamId())
 	})
 }
 
@@ -120,7 +121,28 @@ func (router *streamRouter) addStreamTargetByStreamId() http.HandlerFunc {
 			return
 		}
 
-		err = router.registry.AddStreamTarget(chi.URLParam(r, "id"), (*api.PushTargetUrl)(target))
+		targetName := targetInfo.Name
+		if targetName == "" {
+			targetName = targetInfo.Target // Use URL as name if no name provided
+		}
+
+		err = router.registry.AddStreamTarget(chi.URLParam(r, "id"), (*api.PushTargetUrl)(target), targetName)
+		if err != nil {
+			handleErrors(w, err)
+			return
+		}
+	}
+}
+
+func (router *streamRouter) deleteStreamTargetByStreamId() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var targetInfo DeleteTargetInfo
+		if err := json.NewDecoder(r.Body).Decode(&targetInfo); err != nil {
+			handleErrors(w, err)
+			return
+		}
+
+		err := router.registry.DeleteStreamTarget(chi.URLParam(r, "id"), targetInfo.Target)
 		if err != nil {
 			handleErrors(w, err)
 			return
