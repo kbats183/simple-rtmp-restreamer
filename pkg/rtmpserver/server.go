@@ -31,7 +31,11 @@ func (s *MediaServer) Start() {
 		log.Fatalf("Failed to start RTMP server: %v", err)
 	}
 	for {
-		conn, _ := listen.Accept()
+		conn, err := listen.Accept()
+		if err != nil {
+			log.Printf("Failed to accept connection: %v", err)
+			continue
+		}
 		sess := s.newMediaSession(conn)
 		sess.init()
 		go sess.start()

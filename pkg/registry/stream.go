@@ -31,7 +31,7 @@ type Stream struct {
 func newStream(key *ExternalStream) (*Stream, error) {
 	targets := make([]*api.PushTargetUrl, len(key.Targets))
 	targetNames := make(map[string]string)
-	
+
 	for i, t := range key.Targets {
 		parse, err := url.Parse(t.URL)
 		if err != nil {
@@ -40,7 +40,7 @@ func newStream(key *ExternalStream) (*Stream, error) {
 		targets[i] = (*api.PushTargetUrl)(parse)
 		targetNames[t.URL] = t.Name
 	}
-	
+
 	s := &Stream{
 		Name:            key.Name,
 		Targets:         targets,
@@ -63,11 +63,12 @@ func newStream(key *ExternalStream) (*Stream, error) {
 //}
 
 func (s *Stream) OnFrameBatch(frame *medias.MediaFrameBatch) {
-	s.framesBatches <- frame
-	//log.Printf("%s PUSHES: %s", s.Name, strings.Join(Map(s.targetConsumers, func(it medias.MediaPushConsumer) string {
-	//	return it.Target()
-	//}), ", "))
-	log.Printf("Stream %s handle batch: %s", s.Name, frame.StartTime.Format(time.RFC822))
+	select {
+	case s.framesBatches <- frame:
+		log.Printf("Stream %s handle batch: %s", s.Name, frame.StartTime.Format(time.RFC822))
+	default:
+		log.Printf("Stream %s dropping frame batch due to full buffer", s.Name)
+	}
 }
 
 func (s *Stream) OnProducerClose() {
@@ -86,6 +87,13 @@ func (s *Stream) OnProducerClose() {
 }
 
 func (s *Stream) dispatch() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Stream dispatch panic for %s: %v", s.Name, r)
+		}
+		s.OnProducerClose()
+	}()
+	
 	for {
 		timer := time.After(time.Second * 30)
 		select {
@@ -97,12 +105,33 @@ func (s *Stream) dispatch() {
 			consumers := slices.Clone(s.consumers)
 			s.mu.Unlock()
 
+			// Send to consumers in parallel to avoid blocking
+			var wg sync.WaitGroup
 			for _, c := range targetConsumers {
-				c.Play(batch.Clone())
+				wg.Add(1)
+				go func(consumer medias.MediaPushConsumer) {
+					defer wg.Done()
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("Panic in target consumer %s: %v", consumer.Target(), r)
+						}
+					}()
+					consumer.Play(batch.Clone())
+				}(c)
 			}
 			for _, c := range consumers {
-				c.Play(batch.Clone())
+				wg.Add(1)
+				go func(consumer medias.MediaConsumer) {
+					defer wg.Done()
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("Panic in consumer %s: %v", consumer.Id(), r)
+						}
+					}()
+					consumer.Play(batch.Clone())
+				}(c)
 			}
+			wg.Wait()
 		case <-timer:
 			log.Printf("Kill stream %s after timeout", s.Name)
 			s.OnProducerClose()
@@ -122,7 +151,11 @@ func (s *Stream) updateConsumers() {
 	for _, consumer := range s.targetConsumers {
 		actualTargets[consumer.Target()] = struct{}{}
 		if _, ok := registryTargets[consumer.Target()]; !ok || consumer.IsClosed() {
-			_ = consumer.Close()
+			go func(c medias.MediaPushConsumer) {
+				if err := c.Close(); err != nil {
+					log.Printf("Error closing push consumer for %s: %v", consumer.Target(), err)
+				}
+			}(consumer)
 		} else {
 			newTargetConsumers = append(newTargetConsumers, consumer)
 		}
@@ -173,7 +206,7 @@ func (s *Stream) RemoveConsumer(id interface{}) {
 	defer s.mu.Unlock()
 	for i, consume := range s.consumers {
 		if consume.Id() == id {
-			s.consumers = append(s.consumers[i:], s.consumers[i+1:]...)
+			s.consumers = append(s.consumers[:i], s.consumers[i+1:]...)
 		}
 	}
 }

@@ -33,6 +33,11 @@ func NewPullConsumer(sess *MediaSession, sourceName string) *PullConsumer {
 
 func (c *PullConsumer) Play(batch *medias.MediaFrameBatch) {
 	c.framesMtx.Lock()
+	if len(c.framesBatches) >= 30 {
+		// Drop oldest batches to prevent memory growth
+		c.framesBatches = c.framesBatches[len(c.framesBatches)-15:]
+		log.Printf("PullConsumer (%s) dropping old frame batches", c.sourceName)
+	}
 	c.framesBatches = append(c.framesBatches, batch)
 	c.framesMtx.Unlock()
 	log.Printf("Send")

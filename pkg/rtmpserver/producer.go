@@ -76,7 +76,7 @@ func (prod *MediaProducer) stop() {
 }
 
 func (prod *MediaProducer) Close() error {
-	//prod.stream.OnProducerClose()
+	prod.stream.OnProducerClose()
 	prod.stop()
 	_ = prod.session.registry.UpdateStatus(prod.name, time.Unix(0, 0), 0)
 	return nil
