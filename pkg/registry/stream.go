@@ -48,6 +48,7 @@ func newStream(key *ExternalStream) (*Stream, error) {
 		consumers:       make([]medias.MediaConsumer, 0, 10),
 		targetConsumers: make([]medias.MediaPushConsumer, 0, 10),
 		framesBatches:   make(chan *medias.MediaFrameBatch, 3000),
+		quit:            make(chan struct{}),
 	}
 	go s.dispatch()
 	return s, nil

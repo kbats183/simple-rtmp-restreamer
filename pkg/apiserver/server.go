@@ -20,6 +20,7 @@ func NewWebServer(registry registry.Registry) *webServer {
 	router.Use(middleware.RequestID)
 	router.Use(loggerMiddleware())
 	router.Use(middleware.Recoverer)
+	router.Use(BasicAuth)
 
 	streamRouter := newStreamsRouter(router, registry)
 	streamRouter.Routes()

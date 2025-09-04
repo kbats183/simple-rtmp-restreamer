@@ -52,6 +52,9 @@ func NewPushConsumer(rtmpUrl *api.PushTargetUrl, sourceName string) (*PushConsum
 			if consumer.connect() {
 				break
 			}
+			if consumer.quited.Load() {
+				break
+			}
 		}
 		log.Printf("RTMPPushClient (%s) from %s exited", consumer.url, consumer.sourceName)
 	}()

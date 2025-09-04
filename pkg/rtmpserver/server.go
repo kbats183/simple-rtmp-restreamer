@@ -21,6 +21,7 @@ func NewMediaServer(config MediaServerConfig, registry registry.Registry) *Media
 	return &MediaServer{
 		config:   config,
 		registry: registry,
+		sessions: make(map[string]*MediaSession),
 	}
 }
 
@@ -37,8 +38,16 @@ func (s *MediaServer) Start() {
 			continue
 		}
 		sess := s.newMediaSession(conn)
+		s.mu.Lock()
+		s.sessions[sess.id] = sess
+		s.mu.Unlock()
 		sess.init()
-		go sess.start()
+		go func() {
+			sess.start()
+			s.mu.Lock()
+			delete(s.sessions, sess.id)
+			s.mu.Unlock()
+		}()
 	}
 }
 
