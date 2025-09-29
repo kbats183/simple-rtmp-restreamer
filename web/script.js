@@ -37,7 +37,7 @@ class RTMPRestreamer {
 
     async loadStreams() {
         try {
-            const response = await fetch(this.apiBase);
+            const response = await fetch(`${this.apiBase}/-/`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
             const streams = await response.json();
@@ -179,7 +179,7 @@ class RTMPRestreamer {
             [];
 
         try {
-            const response = await fetch(`${this.apiBase}/-/status`, {
+            const response = await fetch(`${this.apiBase}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
