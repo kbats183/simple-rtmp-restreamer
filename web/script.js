@@ -1,6 +1,6 @@
 class RTMPRestreamer {
     constructor() {
-        this.apiBase = '/api/streams';
+        this.apiBase = 'api/streams';
         this.init();
     }
 
@@ -122,7 +122,7 @@ class RTMPRestreamer {
                 <div class="stream-info">
                     <div><strong>Bitrate:</strong> ${bitrate} kbps</div>
                     <div><strong>Last Frame:</strong> ${lastFrameTime}</div>
-                    <div><strong>RTMP URL:</strong> rtmp://localhost:1935/live/${this.escapeHtml(stream.name || '')}</div>
+                    <div><strong>RTMP URL:</strong> rtmp://${location.hostname}/live/${this.escapeHtml(stream.name || '')}</div>
                 </div>
 
                 <div class="stream-targets">
