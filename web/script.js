@@ -1,6 +1,6 @@
 class RTMPRestreamer {
     constructor() {
-        this.apiBase = '/api/streams';
+        this.apiBase = 'api/streams';
         this.init();
     }
 
@@ -59,23 +59,10 @@ class RTMPRestreamer {
         // Debug: log the streams data
         console.log('Streams data:', streams);
 
-        // Load status for all streams
-        const streamStatuses = {};
-        for (const stream of streams) {
-            try {
-                const statusResponse = await fetch(`${this.apiBase}/${encodeURIComponent(stream.name)}/status`);
-                if (statusResponse.ok) {
-                    streamStatuses[stream.name] = await statusResponse.json();
-                }
-            } catch (error) {
-                console.error(`Failed to load status for ${stream.name}:`, error);
-            }
-        }
-
         // Sort streams alphabetically by name to maintain consistent order
         streams.sort((a, b) => a.name.localeCompare(b.name));
         
-        const html = streams.map(stream => this.renderStreamCard(stream, streamStatuses[stream.name])).join('');
+        const html = streams.map(stream => this.renderStreamCard(stream, stream.status)).join('');
         container.innerHTML = html;
 
         // Add event listeners for stream actions
@@ -135,7 +122,7 @@ class RTMPRestreamer {
                 <div class="stream-info">
                     <div><strong>Bitrate:</strong> ${bitrate} kbps</div>
                     <div><strong>Last Frame:</strong> ${lastFrameTime}</div>
-                    <div><strong>RTMP URL:</strong> rtmp://localhost:1935/live/${this.escapeHtml(stream.name || '')}</div>
+                    <div><strong>RTMP URL:</strong> rtmp://${location.hostname}/live/${this.escapeHtml(stream.name || '')}</div>
                 </div>
 
                 <div class="stream-targets">
@@ -192,7 +179,7 @@ class RTMPRestreamer {
             [];
 
         try {
-            const response = await fetch(this.apiBase, {
+            const response = await fetch(`${this.apiBase}/-/status`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -247,7 +234,7 @@ class RTMPRestreamer {
                 },
                 body: JSON.stringify({
                     name: targetName,
-                    target: targetUrl
+                    url: targetUrl,
                 })
             });
 
