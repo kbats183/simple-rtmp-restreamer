@@ -65,17 +65,9 @@ func (r *registryImpl) GetStatus(keyName string) (*StreamStatus, error) {
 
 	if key, ok := r.keys[keyName]; ok {
 		if key.status == nil {
-			return &StreamStatus{
-				IsLive:        false,
-				LastFrameTime: 0,
-				Bitrate:       0,
-			}, nil
+			return &StreamStatus{}, nil
 		}
-		return &StreamStatus{
-			IsLive:        time.Since(key.status.lastFrameTime) < 3*time.Second,
-			LastFrameTime: key.status.lastFrameTime.Unix(),
-			Bitrate:       key.status.bitrate,
-		}, nil
+		return key.status.toStreamStatus(), nil
 	}
 	return nil, StreamNotFound{}
 }
@@ -104,6 +96,14 @@ func (r *registryImpl) UpdateStatus(keyName string, lastFrameTime time.Time, bit
 		return nil
 	}
 	return StreamNotFound{}
+}
+
+func (r *registryImpl) GetStreamsStatus() ([]*ExternalStreamInfo, error) {
+	streams := make([]*ExternalStreamInfo, 0, len(r.keys))
+	for _, key := range r.keys {
+		streams = append(streams, key.toExternalStreamInfo())
+	}
+	return streams, nil
 }
 
 func (r *registryImpl) getStreamsList() []*Stream {
@@ -173,7 +173,7 @@ func (r *registryImpl) updateFromExternal(key *ExternalStream) error {
 	if stream, ok := r.keys[key.Name]; ok {
 		targets := make([]*api.PushTargetUrl, len(key.Targets))
 		targetNames := make(map[string]string)
-		
+
 		for i, t := range key.Targets {
 			parse, err := url.Parse(t.URL)
 			if err != nil {
@@ -182,7 +182,7 @@ func (r *registryImpl) updateFromExternal(key *ExternalStream) error {
 			targets[i] = (*api.PushTargetUrl)(parse)
 			targetNames[t.URL] = t.Name
 		}
-		
+
 		stream.Targets = targets
 		stream.TargetNames = targetNames
 	} else {
@@ -212,25 +212,25 @@ func (r *registryImpl) addStreamTarget(keyName string, target *api.PushTargetUrl
 
 	if key, ok := r.keys[keyName]; ok {
 		targetURL := target.String()
-		
+
 		// Check if target already exists
 		for _, t := range key.Targets {
 			if t.String() == targetURL {
 				return nil
 			}
 		}
-		
+
 		// Add target
 		key.Targets = append(key.Targets, target)
-		
+
 		// Initialize TargetNames map if nil
 		if key.TargetNames == nil {
 			key.TargetNames = make(map[string]string)
 		}
-		
+
 		// Store the target name
 		key.TargetNames[targetURL] = targetName
-		
+
 		return nil
 	}
 	return StreamNotFound{}
@@ -248,12 +248,12 @@ func (r *registryImpl) deleteStreamTarget(keyName string, target string) error {
 			}
 		}
 		key.Targets = newTargets
-		
+
 		// Also remove from TargetNames map
 		if key.TargetNames != nil {
 			delete(key.TargetNames, target)
 		}
-		
+
 		return nil
 	}
 	return StreamNotFound{}

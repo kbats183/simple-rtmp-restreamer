@@ -28,6 +28,7 @@ func (router *streamRouter) Routes() {
 		r.Use(ContentTypeJson)
 		r.Get("/", router.getStreams())
 		r.Get("/{id}", router.getStreamById())
+		r.Get("/-/status", router.getStreamsInfo())
 		r.Post("/", router.createStream())
 		r.Delete("/{id}", router.deleteBankByID())
 		r.Get("/{id}/status", router.getStreamStatusById())
@@ -110,12 +111,12 @@ func (router *streamRouter) getStreamStatusById() http.HandlerFunc {
 
 func (router *streamRouter) addStreamTargetByStreamId() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var targetInfo AddTargetInfo
+		var targetInfo registry.PushTarget
 		if err := json.NewDecoder(r.Body).Decode(&targetInfo); err != nil {
 			handleErrors(w, err)
 			return
 		}
-		target, err := url.Parse(targetInfo.Target)
+		target, err := url.Parse(targetInfo.URL)
 		if err != nil {
 			handleErrors(w, err)
 			return
@@ -123,7 +124,7 @@ func (router *streamRouter) addStreamTargetByStreamId() http.HandlerFunc {
 
 		targetName := targetInfo.Name
 		if targetName == "" {
-			targetName = targetInfo.Target // Use URL as name if no name provided
+			targetName = targetInfo.URL // Use URL as name if no name provided
 		}
 
 		err = router.registry.AddStreamTarget(chi.URLParam(r, "id"), (*api.PushTargetUrl)(target), targetName)
@@ -144,6 +145,20 @@ func (router *streamRouter) deleteStreamTargetByStreamId() http.HandlerFunc {
 
 		err := router.registry.DeleteStreamTarget(chi.URLParam(r, "id"), targetInfo.Target)
 		if err != nil {
+			handleErrors(w, err)
+			return
+		}
+	}
+}
+
+func (router *streamRouter) getStreamsInfo() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		streams, err := router.registry.GetStreamsStatus()
+		if err != nil {
+			handleErrors(w, err)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(streams); err != nil {
 			handleErrors(w, err)
 			return
 		}
