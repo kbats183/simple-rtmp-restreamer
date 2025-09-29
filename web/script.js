@@ -37,7 +37,7 @@ class RTMPRestreamer {
 
     async loadStreams() {
         try {
-            const response = await fetch(`${this.apiBase}/-/`);
+            const response = await fetch(`${this.apiBase}/-/status`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
             const streams = await response.json();
