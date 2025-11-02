@@ -11,7 +11,6 @@ type MediaFrame struct {
 	Dts      uint32
 	Cid      codec.CodecID
 	IsIFrame bool
-	_        [16]byte
 }
 
 func (f *MediaFrame) clone() MediaFrame {
