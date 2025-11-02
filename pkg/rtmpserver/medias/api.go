@@ -6,12 +6,13 @@ import (
 )
 
 type MediaFrame struct {
-	Time     time.Time
-	Cid      codec.CodecID
 	Frame    []byte
+	Time     int64
 	Pts      uint32
 	Dts      uint32
+	Cid      codec.CodecID
 	IsIFrame bool
+	_        [8]byte
 }
 
 func (f *MediaFrame) clone() MediaFrame {

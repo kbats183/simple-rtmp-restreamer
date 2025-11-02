@@ -124,7 +124,7 @@ func (router *streamRouter) addStreamTargetByStreamId() http.HandlerFunc {
 
 		targetName := targetInfo.Name
 		if targetName == "" {
-			targetName = targetInfo.URL // Use URL as name if no name provided
+			targetName = targetInfo.URL
 		}
 
 		err = router.registry.AddStreamTarget(chi.URLParam(r, "id"), (*api.PushTargetUrl)(target), targetName)
@@ -165,7 +165,6 @@ func (router *streamRouter) getStreamsInfo() http.HandlerFunc {
 	}
 }
 
-// ErrorResponse represents json error structure
 type ErrorResponse struct {
 	Error string `json:"error"`
 }

@@ -1,6 +1,6 @@
 module github.com/kbats183/simple-rtmp-restreamer
 
-go 1.21.1
+go 1.25.3
 
 replace github.com/yapingcat/gomedia v0.0.0-20240823161909-e61bbaf17c9a => github.com/kbats183/gomedia v0.0.0-20250817114334-50ae796beb83
 

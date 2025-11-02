@@ -44,7 +44,7 @@ func (prod *MediaProducer) start() {
 			Frame:    frame,
 			Pts:      pts,
 			Dts:      dts,
-			Time:     time.Now(),
+			Time:     time.Now().UnixNano(),
 			IsIFrame: isIFrame,
 		})
 

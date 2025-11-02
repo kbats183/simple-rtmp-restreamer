@@ -18,8 +18,7 @@ func BasicAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		username := os.Getenv("BASIC_AUTH_USER")
 		password := os.Getenv("BASIC_AUTH_PASS")
-		
-		// Skip auth if credentials not configured
+
 		if username == "" || password == "" {
 			next.ServeHTTP(w, r)
 			return
@@ -32,7 +31,6 @@ func BasicAuth(next http.Handler) http.Handler {
 			return
 		}
 
-		// Use subtle.ConstantTimeCompare to prevent timing attacks
 		usernameMatch := subtle.ConstantTimeCompare([]byte(user), []byte(username)) == 1
 		passwordMatch := subtle.ConstantTimeCompare([]byte(pass), []byte(password)) == 1
 
