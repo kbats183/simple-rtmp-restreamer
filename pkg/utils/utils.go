@@ -5,6 +5,6 @@ import (
 	"math/rand"
 )
 
-func GenId() string {
+func GenID() string {
 	return fmt.Sprintf("%d", rand.Uint64())
 }

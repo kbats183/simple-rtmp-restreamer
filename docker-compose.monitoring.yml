@@ -1,0 +1,48 @@
+# Login is the same as the restreamer basic auth
+# (BASIC_AUTH_USER / BASIC_AUTH_PASS, default live / changeme);
+# override with GRAFANA_ADMIN_USER / GRAFANA_ADMIN_PASSWORD.
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    container_name: "restreamer-prometheus"
+    environment:
+      - RESTREAMER_USER=${BASIC_AUTH_USER:-live}
+      - RESTREAMER_PASS=${BASIC_AUTH_PASS:-changeme}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf '%s' "$$RESTREAMER_USER" > /prometheus/restreamer-user &&
+        printf '%s' "$$RESTREAMER_PASS" > /prometheus/restreamer-pass &&
+        exec /bin/prometheus
+        --config.file=/etc/prometheus/prometheus.yml
+        --storage.tsdb.path=/prometheus
+        --storage.tsdb.retention.time=30d
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.3.0
+    container_name: "restreamer-grafana"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-${BASIC_AUTH_USER:-live}}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-${BASIC_AUTH_PASS:-changeme}}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/restreamer.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -1,0 +1,116 @@
+version: "2"
+run:
+  issues-exit-code: 1
+  tests: true
+  allow-parallel-runners: true
+output:
+  formats:
+    text:
+      path: stderr
+      print-linter-name: true
+      print-issued-lines: true
+linters:
+  default: none
+  enable:
+    - bidichk
+    - bodyclose
+    - containedctx
+    - errcheck
+    - errname
+    - goconst
+    - gocritic
+    - goprintffuncname
+    - govet
+    - ineffassign
+    - makezero
+    - mirror
+    # - mnd / a lot of specific constants in code, so I decided to turn off checks for magic numbers
+    - nestif
+    - nilnil
+    - nolintlint
+    - nosprintfhostport
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - protogetter
+    - revive
+    - staticcheck
+    - testifylint
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    gocognit:
+      min-complexity: 10
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    gocyclo:
+      min-complexity: 10
+    govet:
+      enable:
+        - shadow
+    nakedret:
+      max-func-lines: 25
+    nestif:
+      min-complexity: 7
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    perfsprint:
+      integer-format: false # do not require strconv instead of Sprintf("%d")
+    revive:
+      enable-default-rules: true
+      rules:
+        - name: var-naming
+          arguments:
+            - []
+            - []
+            - - upperCaseConst: true # do not require the names of constants in the camel case.
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+      - legacy
+    rules:
+      - linters:
+          - perfsprint
+        path: _test\.go
+      - linters:
+          - staticcheck
+        text: should check error returned from .* before deferring .*\.Close()
+      - linters:
+          - revive
+        path: _test\.go
+        text: 'unused-parameter: parameter ''.*'' seems to be unused, consider removing or renaming it as _'
+      - linters:
+          - containedctx
+          - dupl
+          - gosec
+        path: _test\.go
+      - path: (.+)\.go$
+        text: (comment on exported (method|function|type|const)|should have( a package)? comment|comment should be of the form)
+      - path: (.+)\.go$
+        text: don't use an underscore in package name
+      - path: (.+)\.go$
+        text: exported (.+) returns unexported type (.+) which can be annoying to use
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax

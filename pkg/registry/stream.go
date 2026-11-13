@@ -1,19 +1,20 @@
 package registry
 
 import (
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/api"
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/rtmpserver/medias"
 	"log"
 	"net/url"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/api"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/metrics"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/rtmpserver/medias"
 )
 
 type Stream struct {
 	Name        string               `json:"name"`
-	Targets     []*api.PushTargetUrl `json:"targets"`
+	Targets     []*api.PushTargetURL `json:"targets"`
 	TargetNames map[string]string    `json:"target_names"` // URL -> Name mapping
 	status      *streamStatus
 
@@ -22,14 +23,14 @@ type Stream struct {
 
 	framesBatches chan *medias.MediaFrameBatch
 
-	mu     sync.Mutex
-	quit   chan struct{}
-	quited atomic.Bool
-	die    sync.Once
+	mu   sync.Mutex
+	quit chan struct{}
+	// quited atomic.Bool
+	die sync.Once
 }
 
 func newStream(key *ExternalStream) (*Stream, error) {
-	targets := make([]*api.PushTargetUrl, len(key.Targets))
+	targets := make([]*api.PushTargetURL, len(key.Targets))
 	targetNames := make(map[string]string)
 
 	for i, t := range key.Targets {
@@ -37,7 +38,7 @@ func newStream(key *ExternalStream) (*Stream, error) {
 		if err != nil {
 			return nil, err
 		}
-		targets[i] = (*api.PushTargetUrl)(parse)
+		targets[i] = (*api.PushTargetURL)(parse)
 		targetNames[t.URL] = t.Name
 	}
 
@@ -50,6 +51,7 @@ func newStream(key *ExternalStream) (*Stream, error) {
 		framesBatches:   make(chan *medias.MediaFrameBatch, 3000),
 		quit:            make(chan struct{}),
 	}
+	metrics.StreamDroppedBatches.WithLabelValues(s.Name)
 	go s.dispatch()
 	return s, nil
 }
@@ -68,6 +70,7 @@ func (s *Stream) OnFrameBatch(frame *medias.MediaFrameBatch) {
 	case s.framesBatches <- frame:
 		log.Printf("Stream %s handle batch: %s", s.Name, frame.StartTime.Format(time.RFC822))
 	default:
+		metrics.StreamDroppedBatches.WithLabelValues(s.Name).Inc()
 		log.Printf("Stream %s dropping frame batch due to full buffer", s.Name)
 	}
 }
@@ -93,8 +96,9 @@ func (s *Stream) dispatch() {
 			log.Printf("Stream dispatch panic for %s: %v", s.Name, r)
 		}
 		s.OnProducerClose()
+		metrics.DeleteStream(s.Name)
 	}()
-	
+
 	for {
 		timer := time.After(time.Second * 30)
 		select {
@@ -126,7 +130,7 @@ func (s *Stream) dispatch() {
 					defer wg.Done()
 					defer func() {
 						if r := recover(); r != nil {
-							log.Printf("Panic in consumer %s: %v", consumer.Id(), r)
+							log.Printf("Panic in consumer %s: %v", consumer.ID(), r)
 						}
 					}()
 					consumer.Play(batch.Clone())
@@ -152,9 +156,13 @@ func (s *Stream) updateConsumers() {
 	for _, consumer := range s.targetConsumers {
 		actualTargets[consumer.Target()] = struct{}{}
 		if _, ok := registryTargets[consumer.Target()]; !ok || consumer.IsClosed() {
+			removed := !ok
 			go func(c medias.MediaPushConsumer) {
 				if err := c.Close(); err != nil {
 					log.Printf("Error closing push consumer for %s: %v", consumer.Target(), err)
+				}
+				if removed {
+					metrics.DeletePushTarget(s.Name, c.TargetName())
 				}
 			}(consumer)
 		} else {
@@ -179,7 +187,7 @@ func (s *Stream) updateConsumers() {
 	for _, target := range s.Targets {
 		if _, ok := actualTargets[target.String()]; !ok {
 			log.Printf("Creating PushConsumer for %s with target %s", s.Name, target.String())
-			c, err := medias.NewPushConsumer(target, s.Name)
+			c, err := medias.NewPushConsumer(target, s.TargetNames[target.String()], s.Name)
 			if err != nil {
 				log.Printf("Failed to create push consumer for stream %s: %v", s.Name, err)
 				continue
@@ -206,7 +214,7 @@ func (s *Stream) RemoveConsumer(id interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, consume := range s.consumers {
-		if consume.Id() == id {
+		if consume.ID() == id {
 			s.consumers = append(s.consumers[:i], s.consumers[i+1:]...)
 		}
 	}

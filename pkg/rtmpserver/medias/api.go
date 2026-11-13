@@ -1,8 +1,9 @@
 package medias
 
 import (
-	"github.com/yapingcat/gomedia/go-codec"
 	"time"
+
+	"github.com/yapingcat/gomedia/go-codec"
 )
 
 type MediaFrame struct {

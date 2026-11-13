@@ -1,20 +1,23 @@
 package rtmpserver
 
 import (
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/metrics"
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"github.com/kbats183/simple-rtmp-restreamer/pkg/rtmpserver/medias"
 	"github.com/yapingcat/gomedia/go-codec"
-	"sync"
-	"time"
 )
 
-//var mainProducer *MediaProducer = nil
+// var mainProducer *MediaProducer = nil
 
 type MediaProducer struct {
-	name               string
-	session            *MediaSession
-	mtx                sync.Mutex
-	frames             chan *medias.MediaFrame
+	name    string
+	session *MediaSession
+	// mtx                sync.Mutex
+	// frames             chan *medias.MediaFrame
 	currentFramesBatch *medias.MediaFrameBatch
 	quit               chan struct{}
 	die                sync.Once
@@ -33,6 +36,7 @@ func newMediaProducer(name string, sess *MediaSession, stream *registry.Stream) 
 
 func (prod *MediaProducer) start() {
 	sess := prod.session
+	metrics.IngestActive.WithLabelValues(prod.name).Set(1)
 	sess.handle.OnFrame(func(cid codec.CodecID, pts, dts uint32, frame []byte) {
 		if prod.currentFramesBatch == nil {
 			prod.currentFramesBatch = &medias.MediaFrameBatch{StartTime: time.Now()}
@@ -46,6 +50,7 @@ func (prod *MediaProducer) start() {
 			Dts:      dts,
 			IsIFrame: isIFrame,
 		})
+		recordIngestFrame(prod.name, cid, len(frame), isIFrame)
 
 		since := time.Since(prod.currentFramesBatch.StartTime)
 		if since >= time.Second || isIFrame {
@@ -60,6 +65,19 @@ func (prod *MediaProducer) start() {
 	})
 }
 
+func recordIngestFrame(stream string, cid codec.CodecID, size int, isIFrame bool) {
+	kind := "audio"
+	if cid == codec.CODECID_VIDEO_H264 || cid == codec.CODECID_VIDEO_H265 || cid == codec.CODECID_VIDEO_VP8 {
+		kind = "video"
+	}
+	codecName := strings.ToLower(codec.CodecString(cid))
+	metrics.IngestFrames.WithLabelValues(stream, kind, codecName).Inc()
+	metrics.IngestBytes.WithLabelValues(stream, kind, codecName).Add(float64(size))
+	if isIFrame {
+		metrics.IngestKeyframes.WithLabelValues(stream).Inc()
+	}
+}
+
 func evaluateBitrate(bytes int, since time.Duration) uint {
 	if since == 0 {
 		return 0
@@ -70,20 +88,21 @@ func evaluateBitrate(bytes int, since time.Duration) uint {
 func (prod *MediaProducer) stop() {
 	prod.die.Do(func() {
 		close(prod.quit)
-		//center.unRegister(prod.name) // should i unregister here?
+		// center.unRegister(prod.name) // should i unregister here?
 	})
 }
 
 func (prod *MediaProducer) Close() error {
+	metrics.IngestActive.WithLabelValues(prod.name).Set(0)
 	prod.stream.OnProducerClose()
 	prod.stop()
 	_ = prod.session.registry.UpdateStatus(prod.name, time.Unix(0, 0), 0)
 	return nil
 }
 
-func (prod *MediaProducer) debugName() string {
-	if prod.session == nil {
-		return prod.name
-	}
-	return prod.name + "-" + prod.session.id
-}
+// func (prod *MediaProducer) debugName() string {
+// 	if prod.session == nil {
+// 		return prod.name
+// 	}
+// 	return prod.name + "-" + prod.session.id
+// }

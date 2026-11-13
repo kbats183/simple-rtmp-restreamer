@@ -1,12 +1,13 @@
 package rtmpserver
 
 import (
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/utils"
-	"github.com/yapingcat/gomedia/go-rtmp"
 	"log"
 	"net"
 	"strconv"
+
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/utils"
+	"github.com/yapingcat/gomedia/go-rtmp"
 )
 
 func prepareConfig(config MediaServerConfig) MediaServerConfig {
@@ -53,7 +54,7 @@ func (s *MediaServer) Start() {
 
 func (s *MediaServer) newMediaSession(conn net.Conn) *MediaSession {
 	return &MediaSession{
-		id:       utils.GenId(),
+		id:       utils.GenID(),
 		conn:     conn,
 		handle:   rtmp.NewRtmpServerHandle(),
 		quit:     make(chan struct{}),

@@ -1,16 +1,16 @@
 package rtmpserver
 
 import (
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/rtmpserver/medias"
 	"log"
 	"sync"
 	"sync/atomic"
+
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/rtmpserver/medias"
 )
 
 type PullConsumer struct {
-	sess   *MediaSession
-	source *registry.Stream
+	sess *MediaSession
+	// source *registry.Stream
 
 	framesBatches []*medias.MediaFrameBatch
 	framesMtx     sync.Mutex
@@ -47,7 +47,7 @@ func (c *PullConsumer) Play(batch *medias.MediaFrameBatch) {
 	}
 }
 
-func (c *PullConsumer) Id() string {
+func (c *PullConsumer) ID() string {
 	return c.sess.id
 }
 
@@ -57,7 +57,7 @@ func (c *PullConsumer) Close() error {
 	c.die.Do(func() {
 		close(c.quit)
 	})
-	log.Printf("Close PullConumer (%s) with id %s", c.sourceName, c.Id())
+	log.Printf("Close PullConumer (%s) with id %s", c.sourceName, c.ID())
 	return nil
 }
 
@@ -68,20 +68,20 @@ func (c *PullConsumer) IsClosed() bool {
 func (c *PullConsumer) sendFrame(frame *medias.MediaFrame) bool {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("WARNING! RTMPPullClient (%s) from %s write frame error: %v", c.Id(), c.sourceName, r)
+			log.Printf("WARNING! RTMPPullClient (%s) from %s write frame error: %v", c.ID(), c.sourceName, r)
 		}
 	}()
 
 	err := c.sess.handle.WriteFrame(frame.Cid, frame.Frame, frame.Pts, frame.Dts)
 	if err != nil {
-		log.Printf("RTMPPullClient (%s) write socket error: %v", c.Id(), err)
+		log.Printf("RTMPPullClient (%s) write socket error: %v", c.ID(), err)
 		return false
 	}
 	return true
 }
 
 func (c *PullConsumer) sendToClient() {
-	log.Printf("PullConsumer dispatch (%s) id %s", c.sourceName, c.Id())
+	log.Printf("PullConsumer dispatch (%s) id %s", c.sourceName, c.ID())
 	firstVideo := true
 	for {
 		select {
@@ -94,7 +94,7 @@ func (c *PullConsumer) sendToClient() {
 			log.Printf("Process %d frame bathces", len(batches))
 			for _, batch := range batches {
 				for _, frame := range batch.Frames {
-					if firstVideo { //wait for I frame
+					if firstVideo { // wait for I frame
 						if frame.IsIFrame {
 							firstVideo = false
 						} else {

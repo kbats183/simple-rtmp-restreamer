@@ -2,8 +2,8 @@ package api
 
 import "net/url"
 
-type PushTargetUrl url.URL
+type PushTargetURL url.URL
 
-func (p *PushTargetUrl) String() string {
+func (p *PushTargetURL) String() string {
 	return (*url.URL)(p).String()
 }

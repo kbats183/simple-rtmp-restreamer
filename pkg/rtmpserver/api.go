@@ -1,8 +1,9 @@
 package rtmpserver
 
 import (
-	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 	"sync"
+
+	"github.com/kbats183/simple-rtmp-restreamer/pkg/registry"
 )
 
 type MediaServer struct {

@@ -1,9 +1,10 @@
 package apiserver
 
 import (
-	"github.com/go-chi/chi/v5/middleware"
 	"log"
 	"net/http"
+
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func loggerMiddleware() func(next http.Handler) http.Handler {
